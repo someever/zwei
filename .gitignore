@@ -1,0 +1,26 @@
+# Environment
+.env
+
+# Database
+database/*.db
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Certificates (sensitive)
+cert/*.pem
+
+# Qoder
+.qoder/
+
+# PHP
+vendor/
+composer.lock
