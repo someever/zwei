@@ -3,28 +3,31 @@
  * Gemini API 客户端 - 支持演示模式
  */
 
-class GeminiClient {
+class GeminiClient
+{
     private $apiKey;
     private $model;
     private $baseUrl;
 
-    public function __construct($apiKey = null, $model = 'gemini-2.0-flash') {
+    public function __construct($apiKey = null, $model = null)
+    {
         $this->apiKey = $apiKey ?? GEMINI_API_KEY;
-        $this->model = $model;
+        $this->model = $model ?? GEMINI_MODEL;
         $this->baseUrl = GEMINI_BASE_URL;
     }
 
     /**
      * 调用 Gemini API
      */
-    public function generate($prompt, $systemPrompt = null) {
+    public function generate($prompt, $systemPrompt = null)
+    {
         // 演示模式
         if (DEMO_MODE) {
             return $this->demoGenerate($prompt, $systemPrompt);
         }
 
         $url = $this->baseUrl . '/models/' . $this->model . ':generateContent?key=' . $this->apiKey;
-        
+
         $data = [
             'contents' => [
                 [
@@ -50,9 +53,16 @@ class GeminiClient {
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json'
         ]);
-        
+        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+
+        if (curl_errno($ch)) {
+            error_log('Gemini API cURL error: ' . curl_error($ch));
+            curl_close($ch);
+            return $this->demoGenerate($prompt, $systemPrompt);
+        }
         curl_close($ch);
 
         if ($httpCode !== 200) {
@@ -61,7 +71,7 @@ class GeminiClient {
         }
 
         $result = json_decode($response, true);
-        
+
         if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
             return $result['candidates'][0]['content']['parts'][0]['text'];
         }
@@ -72,12 +82,13 @@ class GeminiClient {
     /**
      * 演示模式 - 生成模拟解读
      */
-    private function demoGenerate($prompt, $systemPrompt = null) {
+    private function demoGenerate($prompt, $systemPrompt = null)
+    {
         // 解析出生信息
         if ($systemPrompt && strpos($systemPrompt, '出生信息') !== false) {
             return $this->parseBirthInfoDemo($prompt);
         }
-        
+
         // 根据提示类型返回不同的模拟内容
         if (strpos($prompt, '整体解读') !== false || strpos($prompt, '命盘分析') !== false) {
             return $this->getDemoOverallReading();
@@ -90,24 +101,25 @@ class GeminiClient {
         } elseif (strpos($prompt, '健康') !== false) {
             return $this->getDemoHealthReading();
         }
-        
+
         return "感谢您的使用。当前为演示模式，请配置 Gemini API Key 来获取完整解读。";
     }
-    
+
     /**
      * 演示模式 - 解析出生信息
      */
-    private function parseBirthInfoDemo($prompt) {
+    private function parseBirthInfoDemo($prompt)
+    {
         // 尝试用正则解析
         $result = [];
-        
+
         // 提取性别 - 优先判断
         if (preg_match('/女[孩生]?|女生|女方/', $prompt)) {
             $result['gender'] = 'female';
         } elseif (preg_match('/男[孩生]?|男生|男方/', $prompt)) {
             $result['gender'] = 'male';
         }
-        
+
         // 提取姓名 - 排除常见词汇，只提取真正的姓名
         if (preg_match('/^(?:我叫?|本人|name[：:]\\s*)?([A-Za-z]{2,10}|[\\x{4e00}-\\x{9fa5}]{2,4})(?:\\s+[女男]|\\s*[,，])/u', $prompt, $matches)) {
             $name = $matches[1];
@@ -115,55 +127,58 @@ class GeminiClient {
                 $result['name'] = $name;
             }
         }
-        
+
         // 提取年份
         if (preg_match('/(19|20)\d{2}/', $prompt, $matches)) {
-            $result['birthYear'] = (int)$matches[0];
+            $result['birthYear'] = (int) $matches[0];
         }
-        
+
         // 提取月份
         if (preg_match('/(\d{1,2})[月]/', $prompt, $matches)) {
-            $result['birthMonth'] = (int)$matches[1];
+            $result['birthMonth'] = (int) $matches[1];
         }
-        
+
         // 提取日期
         if (preg_match('/[月\/](\d{1,2})[日号]?/', $prompt, $matches)) {
-            $result['birthDay'] = (int)$matches[1];
+            $result['birthDay'] = (int) $matches[1];
         }
-        
+
         // 提取时间 - 支持格式：下午3点半、下午3:30、下午3点、15:30、15时等
         $hasHalf = strpos($prompt, '半') !== false;
-        
+
         // 先检查 HH:mm 格式
         if (preg_match('/(\d{1,2}):(\d{2})/', $prompt, $matches)) {
-            $result['birthHour'] = (int)$matches[1];
-            $result['birthMinute'] = (int)$matches[2];
-        } 
+            $result['birthHour'] = (int) $matches[1];
+            $result['birthMinute'] = (int) $matches[2];
+        }
         // 下午
         elseif (preg_match('/下午(\d{1,2})(?:时|点|:|：)?(\d{1,2})?/', $prompt, $matches)) {
-            $hour = (int)$matches[1];
-            if ($hour < 12) $hour += 12;
+            $hour = (int) $matches[1];
+            if ($hour < 12)
+                $hour += 12;
             $result['birthHour'] = $hour;
-            $result['birthMinute'] = isset($matches[2]) && $matches[2] ? (int)$matches[2] : ($hasHalf ? 30 : 0);
+            $result['birthMinute'] = isset($matches[2]) && $matches[2] ? (int) $matches[2] : ($hasHalf ? 30 : 0);
         }
         // 上午/早上
         elseif (preg_match('/上午|早上(\d{1,2})(?:时|点|:|：)?(\d{1,2})?/', $prompt, $matches)) {
-            $result['birthHour'] = (int)$matches[1];
-            $result['birthMinute'] = isset($matches[2]) && $matches[2] ? (int)$matches[2] : ($hasHalf ? 30 : 0);
+            $result['birthHour'] = (int) $matches[1];
+            $result['birthMinute'] = isset($matches[2]) && $matches[2] ? (int) $matches[2] : ($hasHalf ? 30 : 0);
         }
         // 晚上
         elseif (preg_match('/晚上(\d{1,2})(?:时|点|:|：)?(\d{1,2})?/', $prompt, $matches)) {
-            $hour = (int)$matches[1];
-            if ($hour < 12) $hour += 12;
+            $hour = (int) $matches[1];
+            if ($hour < 12)
+                $hour += 12;
             $result['birthHour'] = $hour;
-            $result['birthMinute'] = isset($matches[2]) && $matches[2] ? (int)$matches[2] : ($hasHalf ? 30 : 0);
+            $result['birthMinute'] = isset($matches[2]) && $matches[2] ? (int) $matches[2] : ($hasHalf ? 30 : 0);
         }
         // 仅小时
         elseif (preg_match('/(\d{1,2})(?:时|点)/', $prompt, $matches)) {
-            $result['birthHour'] = (int)$matches[1];
-            if ($hasHalf) $result['birthMinute'] = 30;
+            $result['birthHour'] = (int) $matches[1];
+            if ($hasHalf)
+                $result['birthMinute'] = 30;
         }
-        
+
         // 提取城市
         $locations = ['北京', '上海', '广州', '深圳', '杭州', '南京', '成都', '武汉', '西安', '重庆', '天津', '苏州'];
         foreach ($locations as $loc) {
@@ -172,15 +187,16 @@ class GeminiClient {
                 break;
             }
         }
-        
+
         if (empty($result['birthYear']) || empty($result['birthMonth']) || empty($result['birthDay'])) {
             return '{"error":"无法解析出生信息"}';
         }
-        
+
         return json_encode($result, JSON_UNESCAPED_UNICODE);
     }
 
-    private function getDemoOverallReading() {
+    private function getDemoOverallReading()
+    {
         return <<<'TEXT'
 ## 【命格分析】
 
@@ -246,7 +262,8 @@ class GeminiClient {
 TEXT;
     }
 
-    private function getDemoCareerReading() {
+    private function getDemoCareerReading()
+    {
         return <<<'TEXT'
 ## 【事业宫分析】
 
@@ -290,7 +307,8 @@ TEXT;
 TEXT;
     }
 
-    private function getDemoMarriageReading() {
+    private function getDemoMarriageReading()
+    {
         return <<<'TEXT'
 ## 【命宫配对】
 
@@ -335,7 +353,8 @@ TEXT;
 TEXT;
     }
 
-    private function getDemoWealthReading() {
+    private function getDemoWealthReading()
+    {
         return <<<'TEXT'
 ## 【财帛宫分析】
 
@@ -383,7 +402,8 @@ TEXT;
 TEXT;
     }
 
-    private function getDemoHealthReading() {
+    private function getDemoHealthReading()
+    {
         return <<<'TEXT'
 ## 【疾厄宫分析】
 
@@ -429,7 +449,8 @@ TEXT;
     }
 
     // 生成命盘整体解读
-    public function generateOverallReading($panData) {
+    public function generateOverallReading($panData)
+    {
         $systemPrompt = <<<'PROMPT'
 你是紫微斗数命理大师，精通紫微斗数命理分析。请根据提供的命盘数据，进行专业、详细的命盘解读。
 解读要求：
@@ -473,7 +494,8 @@ PROMPT;
     }
 
     // 生成事业分析
-    public function generateCareerReading($panData, $age1 = 25, $age2 = 34, $age3 = 35, $age4 = 44) {
+    public function generateCareerReading($panData, $age1 = 25, $age2 = 34, $age3 = 35, $age4 = 44)
+    {
         $systemPrompt = "你是紫微斗数命理大师，专精于事业运势分析。请根据命盘分析事业发展方向和运势。";
 
         $prompt = <<<PROMPT
@@ -507,7 +529,8 @@ PROMPT;
     }
 
     // 生成合婚分析
-    public function generateMarriageReading($malePan, $femalePan) {
+    public function generateMarriageReading($malePan, $femalePan)
+    {
         $systemPrompt = "你是紫微斗数命理大师，专精于合婚分析。请根据男女双方命盘进行合婚分析。";
 
         $prompt = <<<PROMPT
@@ -549,7 +572,8 @@ PROMPT;
     }
 
     // 生成财运分析
-    public function generateWealthReading($panData, $age1 = 25, $age2 = 34, $age3 = 35, $age4 = 44) {
+    public function generateWealthReading($panData, $age1 = 25, $age2 = 34, $age3 = 35, $age4 = 44)
+    {
         $systemPrompt = "你是紫微斗数命理大师，专精于财运分析。请根据命盘分析财运运势。";
 
         $prompt = <<<PROMPT
@@ -584,7 +608,8 @@ PROMPT;
     }
 
     // 生成健康分析
-    public function generateHealthReading($panData, $currentYear = null) {
+    public function generateHealthReading($panData, $currentYear = null)
+    {
         $currentYear = $currentYear ?? date('Y');
         $systemPrompt = "你是紫微斗数命理大师，专精于健康分析。请根据命盘分析健康状况。";
 

@@ -3,7 +3,8 @@
  * 支付工具类（微信支付 - Native扫码支付）
  */
 
-class Payment {
+class Payment
+{
     private $appid;
     private $mchId;
     private $apiKey;
@@ -11,7 +12,8 @@ class Payment {
     private $certPath;
     private $keyPath;
 
-    public function __construct() {
+    public function __construct()
+    {
         // 使用 config.php 中的常量
         $this->appid = defined('WECHAT_APPID') ? WECHAT_APPID : '';
         $this->mchId = defined('WECHAT_MCH_ID') ? WECHAT_MCH_ID : '';
@@ -28,9 +30,10 @@ class Payment {
      * @param string $description 订单描述
      * @return array 二维码链接等信息
      */
-    public function createOrder($orderNo, $amount, $description) {
+    public function createOrder($orderNo, $amount, $description)
+    {
         $totalFee = intval($amount * 100); // 转换为分
-        
+
         $params = [
             'appid' => $this->appid,
             'mch_id' => $this->mchId,
@@ -65,45 +68,48 @@ class Payment {
     /**
      * 查询订单状态
      */
-    public function queryOrder($orderNo) {
+    public function queryOrder($orderNo)
+    {
         $params = [
-            'appid' => '',
+            'appid' => $this->appid,
             'mch_id' => $this->mchId,
             'out_trade_no' => $orderNo,
             'nonce_str' => $this->generateNonceStr()
         ];
-        
+
         $params['sign'] = $this->generateSign($params);
-        
+
         $xml = $this->arrayToXml($params);
         $response = $this->post('https://api.mch.weixin.qq.com/pay/orderquery', $xml);
         $result = $this->xmlToArray($response);
-        
+
         return $result;
     }
 
     /**
      * 验证支付回调签名
      */
-    public function verifyNotify($xml) {
+    public function verifyNotify($xml)
+    {
         $data = $this->xmlToArray($xml);
-        
+
         if (!isset($data['sign'])) {
             return false;
         }
 
         $sign = $data['sign'];
         unset($data['sign']);
-        
+
         return $this->generateSign($data) === $sign;
     }
 
     /**
      * 处理支付回调
      */
-    public function processNotify($xml) {
+    public function processNotify($xml)
+    {
         $data = $this->xmlToArray($xml);
-        
+
         if ($data['return_code'] !== 'SUCCESS') {
             return ['return_code' => 'FAIL', 'return_msg' => '签名失败'];
         }
@@ -127,7 +133,8 @@ class Payment {
     /**
      * 生成签名
      */
-    private function generateSign($params) {
+    private function generateSign($params)
+    {
         ksort($params);
         $string = '';
         foreach ($params as $key => $value) {
@@ -142,7 +149,8 @@ class Payment {
     /**
      * 生成随机字符串
      */
-    private function generateNonceStr($length = 32) {
+    private function generateNonceStr($length = 32)
+    {
         $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         $str = '';
         for ($i = 0; $i < $length; $i++) {
@@ -154,7 +162,8 @@ class Payment {
     /**
      * 获取客户端IP
      */
-    private function getClientIp() {
+    private function getClientIp()
+    {
         if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
             $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
             return trim($ip[0]);
@@ -167,7 +176,8 @@ class Payment {
     /**
      * POST请求（带证书）
      */
-    private function post($url, $data, $useCert = false) {
+    private function post($url, $data, $useCert = false)
+    {
         $ch = curl_init();
         curl_setopt($ch, CURLOPT_URL, $url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -176,28 +186,29 @@ class Payment {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
-        
+
         // 客户端证书认证
         if ($useCert && $this->certPath && $this->keyPath) {
             curl_setopt($ch, CURLOPT_SSLCERT, $this->certPath);
             curl_setopt($ch, CURLOPT_SSLKEY, $this->keyPath);
         }
-        
+
         $response = curl_exec($ch);
-        
+
         if (curl_errno($ch)) {
             throw new Exception('CURL错误: ' . curl_error($ch));
         }
-        
+
         curl_close($ch);
-        
+
         return $response;
     }
 
     /**
      * 数组转XML
      */
-    private function arrayToXml($arr) {
+    public function arrayToXml($arr)
+    {
         $xml = '<xml>';
         foreach ($arr as $key => $val) {
             $xml .= '<' . $key . '><![CDATA[' . $val . ']]></' . $key . '>';
@@ -209,16 +220,17 @@ class Payment {
     /**
      * XML转数组
      */
-    private function xmlToArray($xml) {
+    private function xmlToArray($xml)
+    {
         $result = [];
         libxml_use_internal_errors(true);
         $obj = simplexml_load_string($xml);
         if (!$obj) {
             return $result;
         }
-        $obj = (array)$obj;
+        $obj = (array) $obj;
         foreach ($obj as $key => $value) {
-            $result[$key] = (string)$value;
+            $result[$key] = (string) $value;
         }
         return $result;
     }
