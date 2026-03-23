@@ -3,11 +3,13 @@
  * 数据库工具类 - 支持 SQLite
  */
 
-class Database {
+class Database
+{
     private static $instance = null;
     private $pdo;
 
-    private function __construct() {
+    private function __construct()
+    {
         if (DB_TYPE === 'sqlite') {
             $dbPath = DB_PATH;
             // 确保目录存在
@@ -35,21 +37,24 @@ class Database {
         }
     }
 
-    public static function getInstance() {
+    public static function getInstance()
+    {
         if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
     }
 
-    public function getPdo() {
+    public function getPdo()
+    {
         return $this->pdo;
     }
 
     /**
      * 初始化 SQLite 表
      */
-    private function initTables() {
+    private function initTables()
+    {
         $sql = "
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -110,40 +115,40 @@ class Database {
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
         ";
-        
+
         $this->pdo->exec($sql);
     }
 
     // 查找单条记录
-    public function fetch($sql, $params = []) {
+    public function fetch($sql, $params = [])
+    {
         if (DB_TYPE === 'sqlite') {
             $sql = str_replace('`', '', $sql);
-            // 处理 MySQL 语法转 SQLite
-            $sql = preg_replace('/LIMIT \?/i', 'LIMIT $1', $sql);
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetch();
     }
 
     // 查找多条记录
-    public function fetchAll($sql, $params = []) {
+    public function fetchAll($sql, $params = [])
+    {
         if (DB_TYPE === 'sqlite') {
             $sql = str_replace('`', '', $sql);
-            $sql = preg_replace('/LIMIT \?/i', 'LIMIT $1', $sql);
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll();
     }
 
     // 插入记录
-    public function insert($table, $data) {
+    public function insert($table, $data)
+    {
         $fields = array_keys($data);
         $placeholders = array_map(fn($f) => ":$f", $fields);
-        
+
         if (DB_TYPE === 'sqlite') {
             $sql = sprintf(
                 "INSERT INTO %s (%s) VALUES (%s)",
@@ -159,16 +164,17 @@ class Database {
                 implode(', ', $placeholders)
             );
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($data);
         return $this->pdo->lastInsertId();
     }
 
     // 更新记录
-    public function update($table, $data, $where, $whereParams = []) {
+    public function update($table, $data, $where, $whereParams = [])
+    {
         $sets = array_map(fn($f) => "$f = :$f", array_keys($data));
-        
+
         if (DB_TYPE === 'sqlite') {
             $sql = sprintf(
                 "UPDATE %s SET %s WHERE %s",
@@ -184,41 +190,47 @@ class Database {
                 $where
             );
         }
-        
+
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute(array_merge($data, $whereParams));
     }
 
     // 删除记录
-    public function delete($table, $where, $params = []) {
+    public function delete($table, $where, $params = [])
+    {
         $sql = sprintf("DELETE FROM %s WHERE %s", $table, $where);
         $stmt = $this->pdo->prepare($sql);
         return $stmt->execute($params);
     }
 
     // 开启事务
-    public function beginTransaction() {
+    public function beginTransaction()
+    {
         return $this->pdo->beginTransaction();
     }
 
     // 提交事务
-    public function commit() {
+    public function commit()
+    {
         return $this->pdo->commit();
     }
 
     // 回滚事务
-    public function rollBack() {
+    public function rollBack()
+    {
         return $this->pdo->rollBack();
     }
 
     // 获取配置
-    public function getConfig($key, $default = null) {
+    public function getConfig($key, $default = null)
+    {
         $row = $this->fetch("SELECT config_value FROM payment_config WHERE config_key = ?", [$key]);
         return $row ? $row['config_value'] : $default;
     }
 
     // 设置配置
-    public function setConfig($key, $value) {
+    public function setConfig($key, $value)
+    {
         // SQLite upsert
         $exists = $this->fetch("SELECT id FROM payment_config WHERE config_key = ?", [$key]);
         if ($exists) {
