@@ -24,13 +24,14 @@ class Payment
     }
 
     /**
-     * 创建 Native 支付订单
+     * 创建支付订单
      * @param string $orderNo 订单号
      * @param float $amount 金额（元）
      * @param string $description 订单描述
-     * @return array 二维码链接等信息
+     * @param string $tradeType 交易类型 (NATIVE, MWEB, JSAPI)
+     * @return array
      */
-    public function createOrder($orderNo, $amount, $description)
+    public function createOrder($orderNo, $amount, $description, $tradeType = 'NATIVE')
     {
         $totalFee = intval($amount * 100); // 转换为分
 
@@ -43,8 +44,19 @@ class Payment
             'total_fee' => $totalFee,
             'spbill_create_ip' => $this->getClientIp(),
             'notify_url' => $this->notifyUrl,
-            'trade_type' => 'NATIVE'
+            'trade_type' => $tradeType
         ];
+
+        // H5支付需要 scene_info
+        if ($tradeType === 'MWEB') {
+            $params['scene_info'] = json_encode([
+                'h5_info' => [
+                    'type' => 'Wap',
+                    'wap_url' => APP_URL,
+                    'wap_name' => APP_NAME
+                ]
+            ]);
+        }
 
         $params['sign'] = $this->generateSign($params);
 
@@ -53,13 +65,12 @@ class Payment
         $result = $this->xmlToArray($response);
 
         if ($result['return_code'] === 'SUCCESS' && $result['result_code'] === 'SUCCESS') {
-            return [
+            return array_merge($result, [
                 'success' => true,
-                'prepay_id' => $result['prepay_id'],
-                'code_url' => $result['code_url'], // 二维码链接
                 'order_no' => $orderNo,
-                'amount' => $amount
-            ];
+                'amount' => $amount,
+                'pay_url' => $result['mweb_url'] ?? $result['code_url'] ?? ''
+            ]);
         }
 
         throw new Exception('创建支付订单失败: ' . ($result['return_msg'] ?? $result['err_code_des'] ?? '未知错误'));

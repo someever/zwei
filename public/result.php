@@ -168,6 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             case 'purchase':
                 $package = $_POST['package'] ?? '';
                 $readingType = $_POST['reading_type'] ?? '';
+                $payMethod = $_POST['pay_method'] ?? 'wechat';
 
                 // 确定支付金额和类型
                 $typeMap = [
@@ -181,49 +182,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
 
                 $payInfo = $typeMap[$package];
+                $isMobile = isMobile();
 
-                // 检查微信支付是否配置
-                if (WECHAT_APPID && WECHAT_MCH_ID && WECHAT_API_KEY) {
-                    // 创建订单
-                    $orderNo = 'ZWEI' . date('YmdHis') . rand(1000, 9999);
+                // 微信支付
+                if ($payMethod === 'wechat' && WECHAT_APPID && WECHAT_MCH_ID) {
+                    require_once __DIR__ . '/../app/utils/Payment.php';
+                    $orderNo = 'WX' . date('YmdHis') . rand(1000, 9999);
+
+                    // 记录订单
                     $orderModel = new Order();
-                    $orderId = $orderModel->create([
+                    $orderModel->create([
                         'user_id' => $_SESSION['user_id'] ?? 0,
                         'order_no' => $orderNo,
                         'type' => $package,
                         'amount' => $payInfo['amount'],
-                        'description' => $package === 'single' && $readingType
-                            ? $payInfo['desc'] . '|' . $readingType
-                            : $payInfo['desc'],
+                        'description' => $package === 'single' && $readingType ? $payInfo['desc'] . '|' . $readingType : $payInfo['desc'],
                         'status' => 'pending'
                     ]);
 
-                    // 调用微信支付
-                    require_once __DIR__ . '/../app/utils/Payment.php';
                     $payment = new Payment();
-                    $payResult = $payment->createOrder($orderNo, $payInfo['amount'], $payInfo['desc']);
+                    // 手机端且非微信内置浏览器使用 MWEB
+                    $tradeType = ($isMobile && !isWechat()) ? 'MWEB' : 'NATIVE';
+                    $payResult = $payment->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $tradeType);
 
                     $result['success'] = true;
                     $result['payment'] = true;
+                    $result['pay_method'] = 'wechat';
+                    $result['trade_type'] = $tradeType;
+                    $result['pay_url'] = $payResult['pay_url'];
                     $result['order_no'] = $orderNo;
-                    $result['code_url'] = $payResult['code_url'];
-                    $result['amount'] = $payInfo['amount'];
+                }
+                // 支付宝支付
+                elseif ($payMethod === 'alipay' && ALIPAY_APPID && ALIPAY_PRIVATE_KEY) {
+                    require_once __DIR__ . '/../app/utils/Alipay.php';
+                    $orderNo = 'ALI' . date('YmdHis') . rand(1000, 9999);
+
+                    // 记录订单
+                    $orderModel = new Order();
+                    $orderModel->create([
+                        'user_id' => $_SESSION['user_id'] ?? 0,
+                        'order_no' => $orderNo,
+                        'type' => $package,
+                        'amount' => $payInfo['amount'],
+                        'description' => $package === 'single' && $readingType ? $payInfo['desc'] . '|' . $readingType : $payInfo['desc'],
+                        'status' => 'pending'
+                    ]);
+
+                    $alipay = new Alipay();
+                    $payResult = $alipay->createOrder($orderNo, $payInfo['amount'], $payInfo['desc']);
+
+                    $result['success'] = true;
+                    $result['payment'] = true;
+                    $result['pay_method'] = 'alipay';
+                    $result['pay_url'] = $payResult['pay_url'];
+                    $result['order_no'] = $orderNo;
                 } else {
-                    // 微信支付未配置，演示模式：直接开通
+                    // 演示模式
                     if ($package === 'monthly') {
-                        if ($user) {
+                        if ($user)
                             $userModel->activateMonthlyCard($user['id'], 30);
-                        }
-                        $hasMonthlyCard = true;
                         $_SESSION['purchased_types'] = ['career', 'marriage', 'wealth', 'health'];
                     } elseif ($package === 'bundle') {
                         $_SESSION['purchased_types'] = ['career', 'marriage', 'wealth', 'health'];
-                    } elseif ($package === 'single') {
-                        if ($readingType) {
-                            $purchased = $_SESSION['purchased_types'] ?? [];
-                            $purchased[] = $readingType;
-                            $_SESSION['purchased_types'] = array_unique($purchased);
-                        }
+                    } elseif ($package === 'single' && $readingType) {
+                        $purchased = $_SESSION['purchased_types'] ?? [];
+                        $purchased[] = $readingType;
+                        $_SESSION['purchased_types'] = array_unique($purchased);
                     }
 
                     $result['success'] = true;
@@ -238,6 +262,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     echo json_encode($result);
     exit;
+}
+
+// 辅助函数：检测是否为移动端
+function isMobile()
+{
+    return preg_match("/(android|avantgo|blackberry|bolt|boost|cricket|docomo|fone|hiptop|mini|mobi|palm|phone|pie|tablet|up\.browser|up\.link|webos|wos)/i", $_SERVER["HTTP_USER_AGENT"] ?? '');
+}
+
+// 辅助函数：检测是否为微信浏览器
+function isWechat()
+{
+    return strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'MicroMessenger') !== false;
 }
 ?>
 <!DOCTYPE html>
@@ -416,11 +452,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="btn-cancel"
-                            onclick="document.getElementById('partnerModal').style.display='none'">取消</button>
+                        <button type="button" class="btn-cancel" onclick="document.getElementById('partnerModal').style.display='none'">取消</button>
                         <button type="submit" class="btn-submit">开始合婚分析</button>
                     </div>
                 </form>
+            </div>
+        </div>
+
+        <!-- 支付选择弹窗 -->
+        <div id="payModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <h3>💰 请选择支付方式</h3>
+                <div class="pay-methods" style="display: flex; flex-direction: column; gap: 12px; margin: 20px 0;">
+                    <button class="btn-pay-method wechat" data-method="wechat" style="padding: 15px; border: 2px solid #07c160; border-radius: 12px; background: #f0fdf4; color: #07c160; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        微信支付
+                    </button>
+                    <button class="btn-pay-method alipay" data-method="alipay" style="padding: 15px; border: 2px solid #1677ff; border-radius: 12px; background: #f0f7ff; color: #1677ff; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        支付宝
+                    </button>
+                </div>
+                <div class="form-actions" style="margin-top: 20px; text-align: center;">
+                    <a href="javascript:;" onclick="document.getElementById('payModal').style.display='none'" style="color: #666; text-decoration: none;">暂不购买</a>
+                </div>
             </div>
         </div>
 
@@ -439,26 +492,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 disableMobile: true
             });
 
-            // 购买处理函数
+            let currentPayPackage = '';
+            let currentPayType = '';
+
+             // 购买处理函数
             function handlePurchase(package, readingType) {
-                const body = 'action=purchase&package=' + package + (readingType ? '&reading_type=' + readingType : '');
-                fetch('', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: body
-                })
-                    .then(r => r.json())
+                currentPayPackage = package;
+                currentPayType = readingType;
+                document.getElementById('payModal').style.display = 'flex';
+            }
+
+            // 执行支付
+            document.querySelectorAll('.btn-pay-method').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const payMethod = this.dataset.method;
+                    const body = 'action=purchase&package=' + currentPayPackage + 
+                                 (currentPayType ? '&reading_type=' + currentPayType : '') +
+                                 '&pay_method=' + payMethod;
+                    
+                    this.textContent = '正在发起...';
+                    this.disabled = true;
+
+                    fetch(window.location.href, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                        body: body
+                    })
+                    .then(res => res.json())
                     .then(data => {
+                        this.textContent = payMethod === 'wechat' ? '微信支付' : '支付宝';
+                        this.disabled = false;
+                        document.getElementById('payModal').style.display = 'none';
+
                         if (data.success) {
-                            if (data.payment && data.code_url) {
-                                // 微信支付：显示二维码链接
-                                const msg = '请使用微信扫描以下二维码支付 ¥' + data.amount + '\n\n' +
-                                    '订单号: ' + data.order_no + '\n' +
-                                    '二维码链接: ' + data.code_url + '\n\n' +
-                                    '支付完成后请刷新页面';
-                                alert(msg);
+                            if (data.payment) {
+                                if (data.pay_url) {
+                                    // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
+                                    window.location.href = data.pay_url;
+                                } else if (data.code_url) {
+                                    alert('请扫码支付：' + data.code_url);
+                                }
                             } else {
-                                // 演示模式
                                 alert(data.message || '购买成功！');
                                 location.reload();
                             }
@@ -467,9 +541,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         }
                     })
                     .catch(err => {
+                        this.disabled = false;
                         alert('网络错误，请重试');
                     });
-            }
+                });
+            });
+
 
             // 购买单次解读
             document.querySelectorAll('.btn-buy').forEach(btn => {
@@ -559,8 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     })
                     .catch(err => {
                         resultContent.innerHTML = '<p class="error">网络请求失败，请重试</p>';
-                    });
-            }
+                });      }
         });
     </script>
 </body>

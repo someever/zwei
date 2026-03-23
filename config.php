@@ -51,6 +51,12 @@ define('WECHAT_NOTIFY_URL', getenv('WECHAT_NOTIFY_URL') ?: '');
 define('WECHAT_CERT_PATH', __DIR__ . '/cert/apiclient_cert.pem');
 define('WECHAT_KEY_PATH', __DIR__ . '/cert/apiclient_key.pem');
 
+// 支付宝支付配置 - 从 .env 读取
+define('ALIPAY_APPID', getenv('ALIPAY_APPID') ?: '');
+define('ALIPAY_PRIVATE_KEY', getenv('ALIPAY_PRIVATE_KEY') ?: '');
+define('ALIPAY_PUBLIC_KEY', getenv('ALIPAY_PUBLIC_KEY') ?: '');
+define('ALIPAY_NOTIFY_URL', getenv('ALIPAY_NOTIFY_URL') ?: '');
+
 // Gemini配置
 define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: '');
 define('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta');
