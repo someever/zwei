@@ -54,6 +54,34 @@ if (isset($_SESSION['user_id'])) {
     $hasMonthlyCard = $userModel->hasMonthlyCard($user);
 }
 
+// 从数据库同步已购买状态（解决微信支付回调后 session 未更新的问题）
+if (isset($_SESSION['user_id'])) {
+    $orderModel = new Order();
+    $paidOrders = $orderModel->getUserOrders($_SESSION['user_id']);
+    $dbPurchasedTypes = [];
+    foreach ($paidOrders as $order) {
+        if ($order['status'] !== 'paid')
+            continue;
+        if ($order['type'] === 'bundle') {
+            $dbPurchasedTypes = ['career', 'marriage', 'wealth', 'health'];
+            break;
+        } elseif ($order['type'] === 'monthly') {
+            $hasMonthlyCard = true;
+            break;
+        } elseif ($order['type'] === 'single' && !empty($order['description'])) {
+            // description 格式: "紫微斗数单次解读|career"
+            $parts = explode('|', $order['description']);
+            if (isset($parts[1]) && in_array($parts[1], ['career', 'marriage', 'wealth', 'health'])) {
+                $dbPurchasedTypes[] = $parts[1];
+            }
+        }
+    }
+    if (!empty($dbPurchasedTypes)) {
+        $purchasedTypes = array_unique(array_merge($purchasedTypes, $dbPurchasedTypes));
+        $_SESSION['purchased_types'] = $purchasedTypes;
+    }
+}
+
 // 处理AJAX请求
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -135,7 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'order_no' => $orderNo,
                         'type' => $package,
                         'amount' => $payInfo['amount'],
-                        'description' => $payInfo['desc'],
+                        'description' => $package === 'single' && $readingType
+                            ? $payInfo['desc'] . '|' . $readingType
+                            : $payInfo['desc'],
                         'status' => 'pending'
                     ]);
 
@@ -211,7 +241,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         </p>
                         <p><strong>干支：</strong><?= $panData['lunar_date']['ganzhi_year'] ?>年
                             <?= $panData['lunar_date']['ganzhi_month'] ?>月 <?= $panData['lunar_date']['ganzhi_day'] ?>日
-                            <?= $panData['lunar_date']['ganzhi_hour'] ?></p>
+                            <?= $panData['lunar_date']['ganzhi_hour'] ?>
+                        </p>
                         <p><strong>时辰：</strong><?= $panData['shichen'] ?></p>
                         <p><strong>命宫：</strong><?= $panData['pan']['ming_gong']['name'] ?></p>
                         <p><strong>身宫：</strong><?= $panData['pan']['shen_gong']['name'] ?></p>
