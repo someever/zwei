@@ -40,11 +40,13 @@ class PanCalculator
     const DIZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
     const TIANGAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 
-    public function calculate($year, $month, $day, $hour, $minute, $gender, $location = '')
+    public function calculate($year, $month, $day, $hour, $minute, $gender, $location = [])
     {
+        $locInfo = is_array($location) ? $location : ['location' => $location];
+
         // 如果配置了缘分居 API Key，优先使用 API 排盘
         if (defined('YUANFENJU_API_KEY') && !empty(YUANFENJU_API_KEY)) {
-            $apiResult = $this->calculateViaApi($year, $month, $day, $hour, $minute, $gender);
+            $apiResult = $this->calculateViaApi($year, $month, $day, $hour, $minute, $gender, $locInfo);
             if ($apiResult) {
                 return $apiResult;
             }
@@ -62,7 +64,7 @@ class PanCalculator
             'zhongshu' => $zhongshu,
             'shichen' => $shichen,
             'gender' => $gender,
-            'location' => $location,
+            'location' => $locInfo['location'] ?? '',
             'pan' => $pan,
             'is_api' => false,
             'generated_at' => date('Y-m-d H:i:s')
@@ -72,7 +74,7 @@ class PanCalculator
     /**
      * 使用缘分居 API 排盘
      */
-    private function calculateViaApi($year, $month, $day, $hour, $minute, $gender)
+    private function calculateViaApi($year, $month, $day, $hour, $minute, $gender, $locInfo = [])
     {
         $url = 'https://api.yuanfenju.com/index.php/v1/Bazi/zwpan';
         $params = [
@@ -84,7 +86,11 @@ class PanCalculator
             'day' => $day,
             'hours' => $hour,
             'minute' => $minute,
-            'name' => '访客'
+            'name' => '访客',
+            'zhen' => 1, // 中国真太阳时
+            'sect' => 1, // 门派1
+            'province' => $locInfo['province'] ?? '',
+            'city' => $locInfo['city'] ?? ''
         ];
 
         try {

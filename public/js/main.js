@@ -1,18 +1,24 @@
-/**
- * 紫微斗数算命系统 - 前端脚本
- */
-
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const form = document.getElementById('birthForm');
-    
+
+    // 初始化日期选择器
+    if (document.getElementById('birthDate')) {
+        flatpickr("#birthDate", {
+            locale: "zh",
+            dateFormat: "Y-m-d",
+            maxDate: "today",
+            disableMobile: true
+        });
+    }
+
     if (form) {
-        form.addEventListener('submit', async function(e) {
+        form.addEventListener('submit', async function (e) {
             e.preventDefault();
-            
+
             const submitBtn = form.querySelector('button[type="submit"]');
             submitBtn.disabled = true;
-            submitBtn.textContent = '排盘中...';
-            
+            submitBtn.textContent = '🔮 正在拨通天机...';
+
             try {
                 // 收集表单数据
                 const formData = new FormData(form);
@@ -22,16 +28,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     birthDate: formData.get('birthDate'),
                     birthHour: parseInt(formData.get('birthHour')),
                     birthMinute: parseInt(formData.get('birthMinute')),
-                    birthLocation: formData.get('birthLocation'),
+                    province: formData.get('province'),
+                    city: formData.get('city'),
                     package: formData.get('package')
                 };
-                
+
                 // 解析出生日期
                 const dateParts = data.birthDate.split('-');
+                if (dateParts.length < 3) throw new Error('日期格式错误');
                 data.birthYear = parseInt(dateParts[0]);
                 data.birthMonth = parseInt(dateParts[1]);
                 data.birthDay = parseInt(dateParts[2]);
-                
+
                 // 调用排盘API
                 const response = await fetch('/api/pan.php', {
                     method: 'POST',
@@ -40,15 +48,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     },
                     body: JSON.stringify(data)
                 });
-                
+
                 const result = await response.json();
-                
+
                 if (result.success) {
                     // 保存到sessionStorage
                     sessionStorage.setItem('pan_data', JSON.stringify(result.pan_data));
                     sessionStorage.setItem('reading_id', result.reading_id);
                     sessionStorage.setItem('overall_reading', result.overall_reading);
-                    
+
                     // 跳转到结果页
                     window.location.href = '/result.php';
                 } else {
@@ -64,11 +72,11 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // 套餐选择更新
     const packageInputs = document.querySelectorAll('input[name="package"]');
     packageInputs.forEach(input => {
-        input.addEventListener('change', function() {
+        input.addEventListener('change', function () {
             // 可以添加统计分析代码
             console.log('Selected package:', this.value);
         });
@@ -103,9 +111,9 @@ function getZodiac(month, day) {
         { start: [11, 22], name: '射手座' },
         { start: [12, 22], name: '摩羯座' }
     ];
-    
+
     for (let i = zodiacs.length - 1; i >= 0; i--) {
-        if (month > zodiacs[i].start[0] || 
+        if (month > zodiacs[i].start[0] ||
             (month === zodiacs[i].start[0] && day >= zodiacs[i].start[1])) {
             return zodiacs[i].name;
         }

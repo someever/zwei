@@ -19,35 +19,44 @@ $result = ['success' => false, 'message' => ''];
 try {
     $input = json_decode(file_get_contents('php://input'), true);
     $data = $_POST ?: $input;
-    
+
     if (!$data) {
         throw new Exception('无效的请求数据');
     }
-    
+
     $requiredFields = ['birthYear', 'birthMonth', 'birthDay', 'birthHour', 'birthMinute', 'gender'];
     foreach ($requiredFields as $field) {
         if (!isset($data[$field])) {
             throw new Exception('缺少必填字段: ' . $field);
         }
     }
-    
+
     // 排盘计算
     $calculator = new PanCalculator();
     $panData = $calculator->calculate(
-        $data['birthYear'], $data['birthMonth'], $data['birthDay'],
-        $data['birthHour'], $data['birthMinute'], $data['gender'], $data['birthLocation'] ?? ''
+        $data['birthYear'],
+        $data['birthMonth'],
+        $data['birthDay'],
+        $data['birthHour'],
+        $data['birthMinute'],
+        $data['gender'],
+        [
+            'location' => $data['birthLocation'] ?? '',
+            'province' => $data['province'] ?? '',
+            'city' => $data['city'] ?? ''
+        ]
     );
-    
+
     // 生成命盘整体解读
     $panText = $calculator->formatForGemini($panData);
     $gemini = new GeminiClient();
     $overallReading = $gemini->generateOverallReading($panText);
-    
+
     // 创建/获取用户
     $userModel = new User();
     $user = $userModel->createDemoUser();
     $_SESSION['user_id'] = $user['id'];
-    
+
     // 保存算命记录
     $readingModel = new Reading();
     $readingId = $readingModel->create([
@@ -67,17 +76,17 @@ try {
         'pan_data' => $panData,
         'overall_reading' => $overallReading
     ]);
-    
+
     $_SESSION['pan_data'] = $panData;
     $_SESSION['reading_id'] = $readingId;
     $_SESSION['overall_reading'] = $overallReading;
     $_SESSION['purchased_types'] = []; // 初始未购买任何解读
-    
+
     $result['success'] = true;
     $result['pan_data'] = $panData;
     $result['reading_id'] = $readingId;
     $result['overall_reading'] = $overallReading;
-    
+
 } catch (Exception $e) {
     $result['message'] = $e->getMessage();
 }

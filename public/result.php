@@ -125,6 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $pHour = $_POST['pHour'] ?? 0;
                         $pMinute = $_POST['pMinute'] ?? 0;
                         $pGender = $_POST['pGender'] ?? '';
+                        $pProvince = $_POST['pProvince'] ?? '';
+                        $pCity = $_POST['pCity'] ?? '';
 
                         if (!$pYear || !$pMonth || !$pDay || !$pGender) {
                             $result['need_partner_info'] = true;
@@ -134,7 +136,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                         // 计算另一半命盘
                         $calculator = new PanCalculator();
-                        $partnerPan = $calculator->calculate($pYear, $pMonth, $pDay, $pHour, $pMinute, $pGender);
+                        $partnerPan = $calculator->calculate($pYear, $pMonth, $pDay, $pHour, $pMinute, $pGender, [
+                            'province' => $pProvince,
+                            'city' => $pCity
+                        ]);
                         $partnerPanText = $calculator->formatForGemini($partnerPan);
 
                         // 区分主次（Gemini 方法是 generateMarriageReading($malePan, $femalePan)）
@@ -240,12 +245,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>命盘解读 - 知运星</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 
 <body>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
     <div class="container">
         <header class="header">
             <div class="logo">
@@ -386,21 +392,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     </div>
                     <div class="form-group">
                         <label>出生时间</label>
-                        <div class="time-input">
-                            <select name="pHour">
+                        <div class="time-input" style="display: flex; gap: 10px;">
+                            <select name="pHour" style="flex: 1;">
                                 <?php for ($i = 0; $i < 24; $i++): ?>
                                     <option value="<?= $i ?>"><?= sprintf('%02d', $i) ?>时</option>
                                 <?php endfor; ?>
                             </select>
-                            <select name="pMinute">
+                            <select name="pMinute" style="flex: 1;">
                                 <?php for ($i = 0; $i < 60; $i += 5): ?>
                                     <option value="<?= $i ?>"><?= sprintf('%02d', $i) ?>分</option>
                                 <?php endfor; ?>
                             </select>
                         </div>
                     </div>
+                    <div class="form-group row">
+                        <div class="col">
+                            <label>出生省份</label>
+                            <input type="text" name="pProvince" placeholder="如：北京" required style="width: 100%;">
+                        </div>
+                        <div class="col">
+                            <label>出生城市</label>
+                            <input type="text" name="pCity" placeholder="如：北京" required style="width: 100%;">
+                        </div>
+                    </div>
                     <div class="form-actions">
-                        <button type="button" class="btn-cancel" onclick="document.getElementById('partnerModal').style.display='none'">取消</button>
+                        <button type="button" class="btn-cancel"
+                            onclick="document.getElementById('partnerModal').style.display='none'">取消</button>
                         <button type="submit" class="btn-submit">开始合婚分析</button>
                     </div>
                 </form>
@@ -414,6 +431,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            // 初始化日期选择器
+            flatpickr("input[name='pDate']", {
+                locale: "zh",
+                dateFormat: "Y-m-d",
+                maxDate: "today",
+                disableMobile: true
+            });
+
             // 购买处理函数
             function handlePurchase(package, readingType) {
                 const body = 'action=purchase&package=' + package + (readingType ? '&reading_type=' + readingType : '');
@@ -466,74 +491,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 handlePurchase('monthly');
             });
 
-        // 查看解读
-        document.querySelectorAll('.btn-read').forEach(btn => {
-            btn.addEventListener('click', function () {
-                const option = this.closest('.reading-option');
-                const type = option.dataset.type;
+            // 查看解读
+            document.querySelectorAll('.btn-read').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const option = this.closest('.reading-option');
+                    const type = option.dataset.type;
 
-                if (type === 'marriage') {
-                    document.getElementById('partnerModal').style.display = 'flex';
-                    return;
+                    if (type === 'marriage') {
+                        document.getElementById('partnerModal').style.display = 'flex';
+                        return;
+                    }
+
+                    loadReading(type);
+                });
+            });
+
+            // 提交合婚信息
+            document.getElementById('partnerForm')?.addEventListener('submit', function (e) {
+                e.preventDefault();
+                const formData = new FormData(this);
+                const date = formData.get('pDate').split('-');
+
+                const params = new URLSearchParams();
+                params.append('action', 'get_reading');
+                params.append('type', 'marriage');
+                params.append('pYear', date[0]);
+                params.append('pMonth', date[1]);
+                params.append('pDay', date[2]);
+                params.append('pHour', formData.get('pHour'));
+                params.append('pMinute', formData.get('pMinute'));
+                params.append('pGender', formData.get('pGender'));
+                params.append('pProvince', formData.get('pProvince'));
+                params.append('pCity', formData.get('pCity'));
+
+                document.getElementById('partnerModal').style.display = 'none';
+                loadReading('marriage', params);
+            });
+
+            function loadReading(type, extraParams = null) {
+                const resultSection = document.getElementById('readingResult');
+                const resultContent = resultSection.querySelector('.reading-result-content');
+
+                resultSection.style.display = 'block';
+                resultContent.innerHTML = '<p>🔮 正在为您拨通天机，请稍候...</p>';
+
+                let body = 'action=get_reading&type=' + type;
+                if (extraParams) {
+                    body = extraParams.toString();
                 }
 
-                loadReading(type);
-            });
-        });
-
-        // 提交合婚信息
-        document.getElementById('partnerForm')?.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            const date = formData.get('pDate').split('-');
-            
-            const params = new URLSearchParams();
-            params.append('action', 'get_reading');
-            params.append('type', 'marriage');
-            params.append('pYear', date[0]);
-            params.append('pMonth', date[1]);
-            params.append('pDay', date[2]);
-            params.append('pHour', formData.get('pHour'));
-            params.append('pMinute', formData.get('pMinute'));
-            params.append('pGender', formData.get('pGender'));
-
-            document.getElementById('partnerModal').style.display = 'none';
-            loadReading('marriage', params);
-        });
-
-        function loadReading(type, extraParams = null) {
-            const resultSection = document.getElementById('readingResult');
-            const resultContent = resultSection.querySelector('.reading-result-content');
-            
-            resultSection.style.display = 'block';
-            resultContent.innerHTML = '<p>🔮 正在为您拨通天机，请稍候...</p>';
-            
-            let body = 'action=get_reading&type=' + type;
-            if (extraParams) {
-                body = extraParams.toString();
-            }
-
-            fetch('', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: body
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        resultContent.innerHTML = data.content.replace(/\n/g, '<br>');
-                        resultSection.scrollIntoView({ behavior: 'smooth' });
-                    } else if (data.need_purchase) {
-                        alert('请先购买此项服务');
-                        resultSection.style.display = 'none';
-                    } else {
-                        resultContent.innerHTML = '<p class="error">' + data.message + '</p>';
-                    }
+                fetch('', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body
                 })
-                .catch(err => {
-                    resultContent.innerHTML = '<p class="error">网络请求失败，请重试</p>';
-                });
-        }
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.success) {
+                            resultContent.innerHTML = data.content.replace(/\n/g, '<br>');
+                            resultSection.scrollIntoView({ behavior: 'smooth' });
+                        } else if (data.need_purchase) {
+                            alert('请先购买此项服务');
+                            resultSection.style.display = 'none';
+                        } else {
+                            resultContent.innerHTML = '<p class="error">' + data.message + '</p>';
+                        }
+                    })
+                    .catch(err => {
+                        resultContent.innerHTML = '<p class="error">网络请求失败，请重试</p>';
+                    });
+            }
         });
     </script>
 </body>

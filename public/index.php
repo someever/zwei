@@ -1,12 +1,17 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>知运星 - 探索你的命运轨迹</title>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
+
 <body>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
     <div class="container">
         <header class="header">
             <div class="logo">
@@ -54,21 +59,27 @@
                     <label for="birthTime">出生时间</label>
                     <div class="time-inputs">
                         <select id="birthHour" name="birthHour" required>
-                            <?php for($i=0; $i<24; $i++): ?>
+                            <?php for ($i = 0; $i < 24; $i++): ?>
                                 <option value="<?= $i ?>"><?= str_pad($i, 2, '0', STR_PAD_LEFT) ?> 时</option>
                             <?php endfor; ?>
                         </select>
                         <select id="birthMinute" name="birthMinute" required>
-                            <?php for($i=0; $i<60; $i++): ?>
+                            <?php for ($i = 0; $i < 60; $i++): ?>
                                 <option value="<?= $i ?>"><?= str_pad($i, 2, '0', STR_PAD_LEFT) ?> 分</option>
                             <?php endfor; ?>
                         </select>
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="birthLocation">出生地</label>
-                    <input type="text" id="birthLocation" name="birthLocation" placeholder="请输入出生城市">
+                <div class="form-group row">
+                    <div class="col">
+                        <label for="province">出生省份</label>
+                        <input type="text" id="province" name="province" placeholder="如：北京" required>
+                    </div>
+                    <div class="col">
+                        <label for="city">出生城市</label>
+                        <input type="text" id="city" name="city" placeholder="如：北京" required>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn-primary">开始算命</button>
@@ -102,4 +113,5 @@
     <script src="/js/main.js"></script>
     <script src="/js/chat.js"></script>
 </body>
+
 </html>
