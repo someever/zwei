@@ -3,6 +3,13 @@
  * 紫微斗数算命系统 - 配置文件
  */
 
+// 增加脚本执行时间限制，防止 AI 调用超时
+set_time_limit(120);
+
+// 关闭错误显示，防止警告破坏 JSON 响应（错误会记录在日志中）
+ini_set('display_errors', '0');
+error_reporting(E_ALL);
+
 // 加载 .env 文件
 $envFile = __DIR__ . '/.env';
 if (file_exists($envFile)) {

@@ -60,10 +60,8 @@ class GeminiClient
 
         if (curl_errno($ch)) {
             error_log('Gemini API cURL error: ' . curl_error($ch));
-            curl_close($ch);
             return $this->demoGenerate($prompt, $systemPrompt);
         }
-        curl_close($ch);
 
         if ($httpCode !== 200) {
             // 如果API失败，降级到演示模式
