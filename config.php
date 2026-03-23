@@ -54,7 +54,10 @@ define('WECHAT_KEY_PATH', __DIR__ . '/cert/apiclient_key.pem');
 // Gemini配置
 define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: '');
 define('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta');
-define('GEMINI_MODEL', getenv('GEMINI_MODEL') ?: 'gemini-2.5-flash');
+define('GEMINI_MODEL', getenv('GEMINI_MODEL') ?: 'gemini-1.5-flash');
+
+// 缘分居 API 配置
+define('YUANFENJU_API_KEY', getenv('YUANFENJU_API_KEY') ?: '');
 
 // 时区
 date_default_timezone_set('Asia/Shanghai');

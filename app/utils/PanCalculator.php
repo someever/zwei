@@ -1,30 +1,61 @@
 <?php
 /**
- * 紫微斗数排盘工具类 - 增强版
+ * 紫微斗数排盘工具类 - 增强版（支持 缘分居 API）
  */
 
-class PanCalculator {
+class PanCalculator
+{
     const STARS = [
-        '紫微', '天机', '太阳', '武曲', '天同', '廉贞', 
-        '天府', '太阴', '贪狼', '巨门', '天相', '天梁', 
-        '七杀', '破军'
+        '紫微',
+        '天机',
+        '太阳',
+        '武曲',
+        '天同',
+        '廉贞',
+        '天府',
+        '太阴',
+        '贪狼',
+        '巨门',
+        '天相',
+        '天梁',
+        '七杀',
+        '破军'
     ];
 
     const PALACE_NAMES = [
-        '命宫', '父母宫', '福德宫', '田宅宫', 
-        '事业宫', '交友宫', '迁移宫', '疾厄宫',
-        '财帛宫', '子女宫', '夫妻宫', '兄弟宫'
+        '命宫',
+        '父母宫',
+        '福德宫',
+        '田宅宫',
+        '事业宫',
+        '交友宫',
+        '迁移宫',
+        '疾厄宫',
+        '财帛宫',
+        '子女宫',
+        '夫妻宫',
+        '兄弟宫'
     ];
 
     const DIZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
     const TIANGAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 
-    public function calculate($year, $month, $day, $hour, $minute, $gender, $location = '') {
+    public function calculate($year, $month, $day, $hour, $minute, $gender, $location = '')
+    {
+        // 如果配置了缘分居 API Key，优先使用 API 排盘
+        if (defined('YUANFENJU_API_KEY') && !empty(YUANFENJU_API_KEY)) {
+            $apiResult = $this->calculateViaApi($year, $month, $day, $hour, $minute, $gender);
+            if ($apiResult) {
+                return $apiResult;
+            }
+        }
+
+        // 否则使用本地降级算法
         $lunarDate = $this->getLunarDate($year, $month, $day, $hour, $minute);
         $shichen = $this->getShichen($hour, $minute);
         $zhongshu = $this->getZhongshu($year, $month);
         $pan = $this->buildPan($year, $month, $day, $hour, $minute, $gender, $lunarDate, $shichen);
-        
+
         return [
             'solar_date' => ['year' => $year, 'month' => $month, 'day' => $day, 'hour' => $hour, 'minute' => $minute],
             'lunar_date' => $lunarDate,
@@ -33,51 +64,176 @@ class PanCalculator {
             'gender' => $gender,
             'location' => $location,
             'pan' => $pan,
+            'is_api' => false,
             'generated_at' => date('Y-m-d H:i:s')
         ];
     }
 
-    private function getLunarDate($year, $month, $day, $hour, $minute) {
+    /**
+     * 使用缘分居 API 排盘
+     */
+    private function calculateViaApi($year, $month, $day, $hour, $minute, $gender)
+    {
+        $url = 'https://api.yuanfenju.com/index.php/v1/Bazi/zwpan';
+        $params = [
+            'api_key' => YUANFENJU_API_KEY,
+            'sex' => ($gender === 'male' ? 1 : 0),
+            'type' => 1, // 1表示公历
+            'year' => $year,
+            'month' => $month,
+            'day' => $day,
+            'hours' => $hour,
+            'minute' => $minute,
+            'name' => '访客'
+        ];
+
+        try {
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+
+            $json = curl_exec($ch);
+            curl_close($ch);
+
+            if (!$json)
+                return false;
+
+            $res = json_decode($json, true);
+            if (!isset($res['errcode']) || $res['errcode'] !== 0) {
+                error_log("YuanFenJu API Error: " . ($res['errmsg'] ?? 'Unknown error'));
+                return false;
+            }
+
+            $data = $res['data'];
+            $base = $data['base_info'];
+
+            // 转换为内部格式
+            $palaces = [];
+            foreach ($data['gong_pan'] as $item) {
+                // 合并该宫位的所有星曜
+                $stars = [];
+                $starFields = ['ziweixing', 'tianfuxing', 'monthxing', 'hourxing', 'yearganxing', 'yearzhixing', 'qitaxing'];
+                foreach ($starFields as $f) {
+                    if (!empty($item[$f]) && $item[$f] !== '无' && $item[$f] !== '空') {
+                        // 有些字段可能是逗号分隔的多个星
+                        $parts = explode(',', $item[$f]);
+                        foreach ($parts as $p) {
+                            $stars[] = trim($p);
+                        }
+                    }
+                }
+
+                $palaceName = $item['minggong'];
+                $palaces[$palaceName] = [
+                    'stars' => array_unique($stars),
+                    'zhi' => mb_substr($item['yinshou'], 1, 1),
+                    'gan' => mb_substr($item['yinshou'], 0, 1),
+                    'is_ming_gong' => ($palaceName === '命宫'),
+                    'daxian' => $item['daxian'] ?? '',
+                    'desc' => $item['fuxing_desc'] ?? ''
+                ];
+            }
+
+            return [
+                'solar_date' => ['year' => $year, 'month' => $month, 'day' => $day, 'hour' => $hour, 'minute' => $minute],
+                'lunar_date' => [
+                    'year' => $base['yeargz'],
+                    'month' => $base['monthgz'],
+                    'day' => $base['daygz'],
+                    'ganzhi_year' => $base['yeargz'],
+                    'ganzhi_month' => $base['monthgz'],
+                    'ganzhi_day' => $base['daygz'],
+                    'ganzhi_hour' => $base['hourgz'],
+                    'desc' => $base['nongli']
+                ],
+                'zhongshu' => ['zhongshu' => $base['mingju'] ?? ''],
+                'shichen' => mb_substr($base['nongli'], -2),
+                'gender' => $gender,
+                'pan' => [
+                    'palaces' => $palaces,
+                    'ming_gong' => ['name' => '命宫'],
+                    'shen_gong' => ['name' => $base['shengong'] . '宫'],
+                    'four_transformations' => $this->parseSihua($base['mingsihua']),
+                    'patterns' => [], // API 没直接给格局，暂时留空
+                    'jieqi' => []
+                ],
+                'is_api' => true,
+                'api_data' => $data, // 保留原始数据以供深入解读
+                'generated_at' => date('Y-m-d H:i:s')
+            ];
+
+        } catch (Exception $e) {
+            error_log("YuanFenJu API Exception: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    private function parseSihua($sihuaStr)
+    {
+        if (empty($sihuaStr))
+            return [];
+        // 格式通常是 "机阴贪弼" 对应 禄权科忌
+        $stars = mb_str_split($sihuaStr);
+        $types = ['化禄', '化权', '化科', '化忌'];
+        $res = [];
+        for ($i = 0; $i < min(count($stars), 4); $i++) {
+            $res[$types[$i]] = $stars[$i];
+        }
+        return $res;
+    }
+
+    // --- 以下为本地降级算法 (与之前一致) ---
+
+    private function getLunarDate($year, $month, $day, $hour, $minute)
+    {
         $tiangan = self::TIANGAN;
         $dizhi = self::DIZHI;
-        
+
         $tgIndex = ($year - 4) % 10;
         $dzIndex = ($year - 4) % 12;
         $ganzhiYear = $tiangan[$tgIndex] . $dizhi[$dzIndex];
-        
+
         $monthGanIndex = ($tgIndex * 2 + $month) % 10;
         $ganzhiMonth = $tiangan[$monthGanIndex] . $dizhi[($month - 1) % 12];
-        
-        $daysSince1900 = (int)((mktime(0, 0, 0, $month, $day, $year) - mktime(0, 0, 0, 1, 1, 1900)) / 86400);
+
+        $daysSince1900 = (int) ((mktime(0, 0, 0, $month, $day, $year) - mktime(0, 0, 0, 1, 1, 1900)) / 86400);
         $ganzhiDay = $tiangan[($daysSince1900 + 6) % 10] . $dizhi[($daysSince1900 + 8) % 12];
-        
+
         $hourGanIndex = ($tgIndex * 2 + floor($hour / 2)) % 10;
         $ganzhiHour = $tiangan[$hourGanIndex] . $dizhi[($hour + 1) % 12];
 
         return ['year' => $year, 'month' => $month, 'day' => $day, 'ganzhi_year' => $ganzhiYear, 'ganzhi_month' => $ganzhiMonth, 'ganzhi_day' => $ganzhiDay, 'ganzhi_hour' => $ganzhiHour];
     }
 
-    private function getShichen($hour, $minute) {
+    private function getShichen($hour, $minute)
+    {
         $shichenList = ['子时' => [23, 1], '丑时' => [1, 3], '寅时' => [3, 5], '卯时' => [5, 7], '辰时' => [7, 9], '巳时' => [9, 11], '午时' => [11, 13], '未时' => [13, 15], '申时' => [15, 17], '酉时' => [17, 19], '戌时' => [19, 21], '亥时' => [21, 23]];
-        
+
         foreach ($shichenList as $name => $range) {
-            if ($hour >= $range[0] && $hour < $range[1]) return $name;
+            if ($hour >= $range[0] && $hour < $range[1])
+                return $name;
         }
         return '子时';
     }
 
-    private function getZhongshu($year, $month) {
+    private function getZhongshu($year, $month)
+    {
         $zhongshuList = [1 => '大寒', 2 => '雨水', 3 => '春分', 4 => '谷雨', 5 => '小满', 6 => '夏至', 7 => '大暑', 8 => '处暑', 9 => '秋分', 10 => '霜降', 11 => '小雪', 12 => '冬至'];
         return ['month' => $month, 'zhongshu' => $zhongshuList[$month] ?? ''];
     }
 
-    private function buildPan($year, $month, $day, $hour, $minute, $gender, $lunarDate, $shichen) {
+    private function buildPan($year, $month, $day, $hour, $minute, $gender, $lunarDate, $shichen)
+    {
         $shichenMap = ['子时' => 0, '丑时' => 1, '寅时' => 2, '卯时' => 3, '辰时' => 4, '巳时' => 5, '午时' => 6, '未时' => 7, '申时' => 8, '酉时' => 9, '戌时' => 10, '亥时' => 11];
         $shichenIndex = $shichenMap[$shichen] ?? 0;
         $mingGongIndex = (11 - $shichenIndex + 12) % 12;
         $shenGongIndex = ($mingGongIndex + $month - 1) % 12;
         $starDistribution = $this->distributeStars($year, $month, $day, $gender, $mingGongIndex);
-        
+
         $palaces = [];
         for ($i = 0; $i < 12; $i++) {
             $palaceName = self::PALACE_NAMES[$i];
@@ -94,17 +250,19 @@ class PanCalculator {
         return ['palaces' => $palaces, 'ming_gong' => ['index' => $mingGongIndex, 'name' => self::PALACE_NAMES[$mingGongIndex]], 'shen_gong' => ['index' => $shenGongIndex, 'name' => self::PALACE_NAMES[$shenGongIndex]], 'four_transformations' => $fourTransforms, 'patterns' => $patterns, 'jieqi' => $this->getJieqi($month)];
     }
 
-    private function getYearGanIndex($ganzhiYear) {
+    private function getYearGanIndex($ganzhiYear)
+    {
         $gan = $ganzhiYear[0];
         return array_search($gan, self::TIANGAN) ?? 0;
     }
 
-    private function distributeStars($year, $month, $day, $gender, $mingGongIndex) {
+    private function distributeStars($year, $month, $day, $gender, $mingGongIndex)
+    {
         $distribution = array_fill(0, 12, []);
         $ziweiIndex = ($mingGongIndex + ($year % 12)) % 12;
         $starOrder = ['紫微', '天机', '太阳', '武曲', '天同', '廉贞', '天府', '太阴', '贪狼', '巨门', '天相', '天梁', '七杀', '破军'];
         $distribution[$ziweiIndex][] = '紫微';
-        
+
         $idx = ($ziweiIndex + 1) % 12;
         for ($i = 1; $i < count($starOrder); $i++) {
             if ($starOrder[$i] !== '紫微') {
@@ -112,15 +270,17 @@ class PanCalculator {
                     $distribution[$idx][] = $starOrder[$i];
                 }
                 $idx = ($idx + 1) % 12;
-                if ($i < 7) $idx = ($idx + 1) % 12;
+                if ($i < 7)
+                    $idx = ($idx + 1) % 12;
             }
         }
-        
+
         $this->addSubStars($distribution, $ziweiIndex, $year, $month, $day, $gender);
         return $distribution;
     }
 
-    private function addSubStars(&$distribution, $ziweiIndex, $year, $month, $day, $gender) {
+    private function addSubStars(&$distribution, $ziweiIndex, $year, $month, $day, $gender)
+    {
         $taohuaIndex = ($ziweiIndex + 5) % 12;
         $distribution[$taohuaIndex][] = '红鸾';
         $distribution[($taohuaIndex + 6) % 12][] = '天喜';
@@ -140,57 +300,70 @@ class PanCalculator {
         $distribution[$qingtianIndex][] = '擎羊';
     }
 
-    private function calculateFourTransformations($ganzhiYear) {
+    private function calculateFourTransformations($ganzhiYear)
+    {
         $yearGan = $ganzhiYear[0];
         $transforms = ['甲' => ['化禄' => '廉贞', '化权' => '破军', '化科' => '紫微', '化忌' => '武曲'], '乙' => ['化禄' => '天机', '化权' => '太阳', '化科' => '太阴', '化忌' => '天梁'], '丙' => ['化禄' => '天同', '化权' => '天机', '化科' => '廉贞', '化忌' => '天梁'], '丁' => ['化禄' => '太阴', '化权' => '紫微', '化科' => '天府', '化忌' => '巨门'], '戊' => ['化禄' => '贪狼', '化权' => '太阴', '化科' => '天机', '化忌' => '武曲'], '己' => ['化禄' => '武曲', '化权' => '贪狼', '化科' => '天梁', '化忌' => '紫微'], '庚' => ['化禄' => '太阳', '化权' => '武曲', '化科' => '天同', '化忌' => '天机'], '辛' => ['化禄' => '巨门', '化权' => '太阳', '化科' => '天府', '化忌' => '太阴'], '壬' => ['化禄' => '天梁', '化权' => '紫微', '化科' => '天府', '化忌' => '贪狼'], '癸' => ['化禄' => '破军', '化权' => '巨门', '化科' => '太阴', '化忌' => '廉贞']];
         return $transforms[$yearGan] ?? [];
     }
 
-    private function detectPatterns($palaces, $fourTransforms) {
+    private function detectPatterns($palaces, $fourTransforms)
+    {
         $patterns = [];
-        $allStars = [];
-        foreach ($palaces as $palace) $allStars = array_merge($allStars, $palace['stars']);
-        
         foreach ($palaces as $name => $palace) {
             $stars = $palace['stars'];
-            if (in_array('紫微', $stars) && in_array('天府', $stars)) $patterns[] = '紫府同宫';
-            if (in_array('太阳', $stars) && in_array('太阴', $stars)) $patterns[] = '日月并明';
-            if (in_array('贪狼', $stars) && (in_array('火星', $stars) || in_array('铃星', $stars))) $patterns[] = '火贪暴发';
-            if (in_array('七杀', $stars) && in_array('破军', $stars) && in_array('贪狼', $stars)) $patterns[] = '杀破狼格';
-            if (in_array('禄存', $stars) && isset($fourTransforms['化禄'])) $patterns[] = '禄星拱照';
+            if (in_array('紫微', $stars) && in_array('天府', $stars))
+                $patterns[] = '紫府同宫';
+            if (in_array('太阳', $stars) && in_array('太阴', $stars))
+                $patterns[] = '日月并明';
+            if (in_array('贪狼', $stars) && (in_array('火星', $stars) || in_array('铃星', $stars)))
+                $patterns[] = '火贪暴发';
+            if (in_array('七杀', $stars) && in_array('破军', $stars) && in_array('贪狼', $stars))
+                $patterns[] = '杀破狼格';
+            if (in_array('禄存', $stars) && isset($fourTransforms['化禄']))
+                $patterns[] = '禄星拱照';
         }
         return array_unique($patterns);
     }
 
-    private function getJieqi($month) {
+    private function getJieqi($month)
+    {
         $seasonJieqi = [1 => ['小寒', '大寒'], 2 => ['立春', '雨水'], 3 => ['惊蛰', '春分'], 4 => ['清明', '谷雨'], 5 => ['立夏', '小满'], 6 => ['芒种', '夏至'], 7 => ['小暑', '大暑'], 8 => ['立秋', '处暑'], 9 => ['白露', '秋分'], 10 => ['寒露', '霜降'], 11 => ['立冬', '小雪'], 12 => ['大雪', '冬至']];
         return $seasonJieqi[$month] ?? [];
     }
 
-    public function formatForGemini($pan) {
+    public function formatForGemini($pan)
+    {
         $output = "紫微斗数命盘分析\n====================\n\n";
         $output .= "【基本信息】\n";
-        $output .= "农历: {$pan['lunar_date']['year']}年{$pan['lunar_date']['month']}月{$pan['lunar_date']['day']}日\n";
+        $output .= "农历: " . ($pan['lunar_date']['desc'] ?? "{$pan['lunar_date']['year']}年{$pan['lunar_date']['month']}月{$pan['lunar_date']['day']}日") . "\n";
         $output .= "年干支: {$pan['lunar_date']['ganzhi_year']}\n";
         $output .= "月干支: {$pan['lunar_date']['ganzhi_month']}\n";
         $output .= "日干支: {$pan['lunar_date']['ganzhi_day']}\n";
         $output .= "时干支: {$pan['lunar_date']['ganzhi_hour']}\n";
         $output .= "时辰: {$pan['shichen']}\n";
-        $output .= "中气: {$pan['zhongshu']['zhongshu']}\n";
-        $output .= "节气: " . implode('、', $pan['pan']['jieqi']) . "\n\n";
-        $output .= "【命宫与身宫】\n";
+        $output .= "命局: " . ($pan['zhongshu']['zhongshu'] ?? '') . "\n";
+        if (!empty($pan['pan']['jieqi'])) {
+            $output .= "节气: " . implode('、', $pan['pan']['jieqi']) . "\n";
+        }
+        $output .= "\n【命宫与身宫】\n";
         $output .= "命宫: {$pan['pan']['ming_gong']['name']}\n";
         $output .= "身宫: {$pan['pan']['shen_gong']['name']}\n\n";
         $output .= "【四化星】\n";
         foreach ($pan['pan']['four_transformations'] as $transform => $star) {
             $output .= "{$transform}: {$star}\n";
         }
-        $output .= "\n【格局】\n";
-        $output .= implode('、', $pan['pan']['patterns']) . "\n\n";
-        $output .= "【十二宫位】\n";
+        if (!empty($pan['pan']['patterns'])) {
+            $output .= "\n【格局】\n";
+            $output .= implode('、', $pan['pan']['patterns']) . "\n";
+        }
+        $output .= "\n【十二宫位】\n";
         foreach ($pan['pan']['palaces'] as $palaceName => $palace) {
             $stars = implode('、', $palace['stars']);
             $output .= "{$palaceName} ({$palace['gan']}{$palace['zhi']}): {$stars}\n";
+            if (!empty($palace['daxian'])) {
+                $output .= "  ┗ 大限: {$palace['daxian']}\n";
+            }
         }
         return $output;
     }
