@@ -21,10 +21,16 @@ if (file_exists($envFile)) {
             list($key, $value) = explode('=', $line, 2);
             $key = trim($key);
             $value = trim($value);
-            if (!getenv($key)) {
-                putenv("$key=$value");
-                $_ENV[$key] = $value;
+
+            if (
+                (str_starts_with($value, '"') && str_ends_with($value, '"')) ||
+                (str_starts_with($value, "'") && str_ends_with($value, "'"))
+            ) {
+                $value = substr($value, 1, -1);
             }
+
+            putenv("$key=$value");
+            $_ENV[$key] = $value;
         }
     }
 }
@@ -44,26 +50,27 @@ define('PAYMENT_MONTHLY_PRICE', 666);
 define('PAYMENT_MONTHLY_DAYS', 30);
 
 // 微信支付配置 - 从 .env 读取
-define('WECHAT_APPID', getenv('WECHAT_APPID') ?: '');
-define('WECHAT_MCH_ID', getenv('WECHAT_MCH_ID') ?: '');
-define('WECHAT_API_KEY', getenv('WECHAT_API_KEY') ?: '');
-define('WECHAT_NOTIFY_URL', getenv('WECHAT_NOTIFY_URL') ?: '');
+define('WECHAT_APPID', $_ENV['WECHAT_APPID'] ?? getenv('WECHAT_APPID') ?: '');
+define('WECHAT_MCH_ID', $_ENV['WECHAT_MCH_ID'] ?? getenv('WECHAT_MCH_ID') ?: '');
+define('WECHAT_API_KEY', $_ENV['WECHAT_API_KEY'] ?? getenv('WECHAT_API_KEY') ?: '');
+define('WECHAT_NOTIFY_URL', $_ENV['WECHAT_NOTIFY_URL'] ?? getenv('WECHAT_NOTIFY_URL') ?: '');
 define('WECHAT_CERT_PATH', __DIR__ . '/cert/apiclient_cert.pem');
 define('WECHAT_KEY_PATH', __DIR__ . '/cert/apiclient_key.pem');
 
 // 支付宝支付配置 - 从 .env 读取
-define('ALIPAY_APPID', getenv('ALIPAY_APPID') ?: '');
-define('ALIPAY_PRIVATE_KEY', getenv('ALIPAY_PRIVATE_KEY') ?: '');
-define('ALIPAY_PUBLIC_KEY', getenv('ALIPAY_PUBLIC_KEY') ?: '');
-define('ALIPAY_NOTIFY_URL', getenv('ALIPAY_NOTIFY_URL') ?: '');
+define('ALIPAY_APPID', $_ENV['ALIPAY_APPID'] ?? getenv('ALIPAY_APPID') ?: '');
+define('ALIPAY_PRIVATE_KEY', $_ENV['ALIPAY_PRIVATE_KEY'] ?? getenv('ALIPAY_PRIVATE_KEY') ?: '');
+define('ALIPAY_PUBLIC_KEY', $_ENV['ALIPAY_PUBLIC_KEY'] ?? getenv('ALIPAY_PUBLIC_KEY') ?: '');
+define('ALIPAY_NOTIFY_URL', $_ENV['ALIPAY_NOTIFY_URL'] ?? getenv('ALIPAY_NOTIFY_URL') ?: '');
+define('ALIPAY_SANDBOX', strtolower($_ENV['ALIPAY_SANDBOX'] ?? getenv('ALIPAY_SANDBOX') ?: 'false') === 'true');
 
 // Gemini配置
-define('GEMINI_API_KEY', getenv('GEMINI_API_KEY') ?: '');
+define('GEMINI_API_KEY', $_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY') ?: '');
 define('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta');
-define('GEMINI_MODEL', getenv('GEMINI_MODEL') ?: 'gemini-1.5-flash');
+define('GEMINI_MODEL', $_ENV['GEMINI_MODEL'] ?? getenv('GEMINI_MODEL') ?: 'gemini-1.5-flash');
 
 // 缘分居 API 配置
-define('YUANFENJU_API_KEY', getenv('YUANFENJU_API_KEY') ?: '');
+define('YUANFENJU_API_KEY', $_ENV['YUANFENJU_API_KEY'] ?? getenv('YUANFENJU_API_KEY') ?: '');
 
 // 时区
 date_default_timezone_set('Asia/Shanghai');

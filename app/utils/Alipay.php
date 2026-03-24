@@ -9,7 +9,7 @@ class Alipay
     private $privateKey;
     private $publicKey;
     private $notifyUrl;
-    private $gateway = "https://openapi.alipay.com/gateway.do";
+    private $gateway;
 
     public function __construct()
     {
@@ -17,6 +17,11 @@ class Alipay
         $this->privateKey = defined('ALIPAY_PRIVATE_KEY') ? ALIPAY_PRIVATE_KEY : '';
         $this->publicKey = defined('ALIPAY_PUBLIC_KEY') ? ALIPAY_PUBLIC_KEY : '';
         $this->notifyUrl = defined('ALIPAY_NOTIFY_URL') ? ALIPAY_NOTIFY_URL : '';
+
+        $isSandbox = defined('ALIPAY_SANDBOX') && ALIPAY_SANDBOX;
+        $this->gateway = $isSandbox
+            ? "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
+            : "https://openapi.alipay.com/gateway.do";
     }
 
     /**

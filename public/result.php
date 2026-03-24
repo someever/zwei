@@ -452,7 +452,8 @@ function isWechat()
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button type="button" class="btn-cancel" onclick="document.getElementById('partnerModal').style.display='none'">取消</button>
+                        <button type="button" class="btn-cancel"
+                            onclick="document.getElementById('partnerModal').style.display='none'">取消</button>
                         <button type="submit" class="btn-submit">开始合婚分析</button>
                     </div>
                 </form>
@@ -464,15 +465,18 @@ function isWechat()
             <div class="modal-content">
                 <h3>💰 请选择支付方式</h3>
                 <div class="pay-methods" style="display: flex; flex-direction: column; gap: 12px; margin: 20px 0;">
-                    <button class="btn-pay-method wechat" data-method="wechat" style="padding: 15px; border: 2px solid #07c160; border-radius: 12px; background: #f0fdf4; color: #07c160; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <button class="btn-pay-method wechat" data-method="wechat"
+                        style="padding: 15px; border: 2px solid #07c160; border-radius: 12px; background: #f0fdf4; color: #07c160; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
                         微信支付
                     </button>
-                    <button class="btn-pay-method alipay" data-method="alipay" style="padding: 15px; border: 2px solid #1677ff; border-radius: 12px; background: #f0f7ff; color: #1677ff; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                    <button class="btn-pay-method alipay" data-method="alipay"
+                        style="padding: 15px; border: 2px solid #1677ff; border-radius: 12px; background: #f0f7ff; color: #1677ff; font-size: 1.1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px;">
                         支付宝
                     </button>
                 </div>
                 <div class="form-actions" style="margin-top: 20px; text-align: center;">
-                    <a href="javascript:;" onclick="document.getElementById('payModal').style.display='none'" style="color: #666; text-decoration: none;">暂不购买</a>
+                    <a href="javascript:;" onclick="document.getElementById('payModal').style.display='none'"
+                        style="color: #666; text-decoration: none;">暂不购买</a>
                 </div>
             </div>
         </div>
@@ -495,7 +499,7 @@ function isWechat()
             let currentPayPackage = '';
             let currentPayType = '';
 
-             // 购买处理函数
+            // 购买处理函数
             function handlePurchase(package, readingType) {
                 currentPayPackage = package;
                 currentPayType = readingType;
@@ -504,12 +508,12 @@ function isWechat()
 
             // 执行支付
             document.querySelectorAll('.btn-pay-method').forEach(btn => {
-                btn.addEventListener('click', function() {
+                btn.addEventListener('click', function () {
                     const payMethod = this.dataset.method;
-                    const body = 'action=purchase&package=' + currentPayPackage + 
-                                 (currentPayType ? '&reading_type=' + currentPayType : '') +
-                                 '&pay_method=' + payMethod;
-                    
+                    const body = 'action=purchase&package=' + currentPayPackage +
+                        (currentPayType ? '&reading_type=' + currentPayType : '') +
+                        '&pay_method=' + payMethod;
+
                     this.textContent = '正在发起...';
                     this.disabled = true;
 
@@ -518,32 +522,32 @@ function isWechat()
                         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                         body: body
                     })
-                    .then(res => res.json())
-                    .then(data => {
-                        this.textContent = payMethod === 'wechat' ? '微信支付' : '支付宝';
-                        this.disabled = false;
-                        document.getElementById('payModal').style.display = 'none';
+                        .then(res => res.json())
+                        .then(data => {
+                            this.textContent = payMethod === 'wechat' ? '微信支付' : '支付宝';
+                            this.disabled = false;
+                            document.getElementById('payModal').style.display = 'none';
 
-                        if (data.success) {
-                            if (data.payment) {
-                                if (data.pay_url) {
-                                    // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
-                                    window.location.href = data.pay_url;
-                                } else if (data.code_url) {
-                                    alert('请扫码支付：' + data.code_url);
+                            if (data.success) {
+                                if (data.payment) {
+                                    if (data.pay_url) {
+                                        // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
+                                        window.location.href = data.pay_url;
+                                    } else if (data.code_url) {
+                                        alert('请扫码支付：' + data.code_url);
+                                    }
+                                } else {
+                                    alert(data.message || '购买成功！');
+                                    location.reload();
                                 }
                             } else {
-                                alert(data.message || '购买成功！');
-                                location.reload();
+                                alert('购买失败: ' + (data.message || '未知错误'));
                             }
-                        } else {
-                            alert('购买失败: ' + (data.message || '未知错误'));
-                        }
-                    })
-                    .catch(err => {
-                        this.disabled = false;
-                        alert('网络错误，请重试');
-                    });
+                        })
+                        .catch(err => {
+                            this.disabled = false;
+                            alert('网络错误，请重试');
+                        });
                 });
             });
 
@@ -636,7 +640,8 @@ function isWechat()
                     })
                     .catch(err => {
                         resultContent.innerHTML = '<p class="error">网络请求失败，请重试</p>';
-                });      }
+                    });
+            }
         });
     </script>
 </body>
