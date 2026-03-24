@@ -14,7 +14,7 @@ require_once __DIR__ . '/../app/models/Order.php';
 session_start();
 
 if (!isset($_SESSION['pan_data']) || !isset($_SESSION['reading_id'])) {
-    header('Location: /');
+    header('Location: index.php');
     exit;
 }
 
@@ -281,7 +281,7 @@ function isWechat()
 
 <head>
     <meta charset="UTF-8">
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 
@@ -291,11 +291,11 @@ function isWechat()
     <div class="container">
         <header class="header">
             <div class="logo">
-                <img src="/images/icon.png" alt="知运星" class="app-icon" onerror="this.style.display='none'">
+                <img src="images/icon.png" alt="知运星" class="app-icon" onerror="this.style.display='none'">
                 <span class="logo-icon">🔮</span>
             </div>
             <h1>知运星</h1>
-            <a href="/" class="back-link">← 重新算命</a>
+            <a href="index.php" class="back-link">← 重新算命</a>
         </header>
 
         <main class="main">

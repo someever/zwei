@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>知运星 - 探索你的命运轨迹</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 </head>
 
@@ -15,7 +15,7 @@
     <div class="container">
         <header class="header">
             <div class="logo">
-                <img src="/images/icon.png" alt="知运星" class="app-icon" onerror="this.style.display='none'">
+                <img src="images/icon.png" alt="知运星" class="app-icon" onerror="this.style.display='none'">
                 <span class="logo-icon">🔮</span>
             </div>
             <h1>知运星</h1>
@@ -107,11 +107,8 @@
 
         <footer class="footer">
             <p>© 2026 知运星 · 紫微斗数传承</p>
-        </footer>
-    </div>
-
-    <script src="/js/main.js"></script>
-    <script src="/js/chat.js"></script>
+            <script src="js/main.js"></script>
+            <script src="js/chat.js"></script>
 </body>
 
 </html>
