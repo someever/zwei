@@ -1,5 +1,6 @@
 # Environment
-.env
+# .env (Uncommented at user's request)
+
 
 # Database
 database/*.db
