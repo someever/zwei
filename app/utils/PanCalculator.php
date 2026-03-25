@@ -88,7 +88,7 @@ class PanCalculator
             'minute' => $minute,
             'name' => '访客',
             'zhen' => 1, // 中国真太阳时
-            'sect' => 1, // 门派1
+            'sect' => 2, // 门派2 (默认)
             'province' => $locInfo['province'] ?? '',
             'city' => $locInfo['city'] ?? ''
         ];
