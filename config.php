@@ -66,7 +66,7 @@ define('ALIPAY_SANDBOX', strtolower($_ENV['ALIPAY_SANDBOX'] ?? getenv('ALIPAY_SA
 
 // Gemini配置
 define('GEMINI_API_KEY', $_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY') ?: '');
-define('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta');
+define('GEMINI_BASE_URL', $_ENV['GEMINI_BASE_URL'] ?? getenv('GEMINI_BASE_URL') ?: 'https://generativelanguage.googleapis.com/v1beta');
 define('GEMINI_MODEL', $_ENV['GEMINI_MODEL'] ?? getenv('GEMINI_MODEL') ?: 'gemini-1.5-flash');
 
 // 缘分居 API 配置
