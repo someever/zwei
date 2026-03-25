@@ -17,7 +17,7 @@ class GeminiClient
     }
 
     /**
-     * 调用 Gemini API
+     * 调用 AI API (OpenAI 协议)
      */
     public function generate($prompt, $systemPrompt = null)
     {
@@ -26,52 +26,48 @@ class GeminiClient
             return $this->demoGenerate($prompt, $systemPrompt);
         }
 
-        $url = $this->baseUrl . '/models/' . $this->model . ':generateContent?key=' . $this->apiKey;
+        $url = rtrim($this->baseUrl, '/') . '/chat/completions';
+
+        $messages = [];
+        if ($systemPrompt) {
+            $messages[] = ['role' => 'system', 'content' => $systemPrompt];
+        }
+        $messages[] = ['role' => 'user', 'content' => $prompt];
 
         $data = [
-            'contents' => [
-                [
-                    'parts' => [
-                        ['text' => $prompt]
-                    ]
-                ]
-            ]
+            'model' => $this->model,
+            'messages' => $messages,
+            'temperature' => 0.7,
+            'max_tokens' => 2000
         ];
-
-        if ($systemPrompt) {
-            $data['systemInstruction'] = [
-                'parts' => [
-                    ['text' => $systemPrompt]
-                ]
-            ];
-        }
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
-            'Content-Type: application/json'
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey
         ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 60);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 120);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if (curl_errno($ch)) {
-            error_log('Gemini API cURL error: ' . curl_error($ch));
+            error_log('AI API cURL error: ' . curl_error($ch));
             return $this->demoGenerate($prompt, $systemPrompt);
         }
 
         if ($httpCode !== 200) {
-            // 如果API失败，降级到演示模式
+            error_log('AI API HTTP error: ' . $httpCode . ' Response: ' . $response);
             return $this->demoGenerate($prompt, $systemPrompt);
         }
 
         $result = json_decode($response, true);
 
-        if (isset($result['candidates'][0]['content']['parts'][0]['text'])) {
-            return $result['candidates'][0]['content']['parts'][0]['text'];
+        if (isset($result['choices'][0]['message']['content'])) {
+            return $result['choices'][0]['message']['content'];
         }
 
         return $this->demoGenerate($prompt, $systemPrompt);

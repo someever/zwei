@@ -73,12 +73,16 @@
 
                 <div class="form-group row">
                     <div class="col">
-                        <label for="province">出生省份</label>
-                        <input type="text" id="province" name="province" placeholder="如：北京" required>
+                        <label for="provinceSelect">出生省份</label>
+                        <select id="provinceSelect" name="province" required>
+                            <option value="">请选择省份</option>
+                        </select>
                     </div>
                     <div class="col">
-                        <label for="city">出生城市</label>
-                        <input type="text" id="city" name="city" placeholder="如：北京" required>
+                        <label for="citySelect">出生城市</label>
+                        <select id="citySelect" name="city" required>
+                            <option value="">请选择城市</option>
+                        </select>
                     </div>
                 </div>
 

@@ -444,11 +444,15 @@ function isWechat()
                     <div class="form-group row">
                         <div class="col">
                             <label>出生省份</label>
-                            <input type="text" name="pProvince" placeholder="如：北京" required style="width: 100%;">
+                            <select name="pProvince" id="pProvinceSelect" required>
+                                <option value="">请选择省份</option>
+                            </select>
                         </div>
                         <div class="col">
                             <label>出生城市</label>
-                            <input type="text" name="pCity" placeholder="如：北京" required style="width: 100%;">
+                            <select name="pCity" id="pCitySelect" required>
+                                <option value="">请选择城市</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-actions">
@@ -487,7 +491,46 @@ function isWechat()
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', async function () {
+            // 加载省市数据
+            async function initProvinceSelectors(provinceElId, cityElId) {
+                const provinceSelect = document.getElementById(provinceElId);
+                const citySelect = document.getElementById(cityElId);
+                if (!provinceSelect || !citySelect) return;
+
+                try {
+                    const response = await fetch('js/data/province.json');
+                    if (!response.ok) throw new Error('Failed to load province data');
+                    const data = await response.json();
+
+                    // 填充省份
+                    Object.keys(data).forEach(province => {
+                        const opt = document.createElement('option');
+                        opt.value = province;
+                        opt.textContent = province;
+                        provinceSelect.appendChild(opt);
+                    });
+
+                    // 省份变更监听
+                    provinceSelect.addEventListener('change', function () {
+                        const province = this.value;
+                        citySelect.innerHTML = '<option value="">请选择城市</option>';
+                        if (province && data[province]) {
+                            data[province].forEach(city => {
+                                const opt = document.createElement('option');
+                                opt.value = city;
+                                opt.textContent = city;
+                                citySelect.appendChild(opt);
+                            });
+                        }
+                    });
+                } catch (error) {
+                    console.error('Province data loading error:', error);
+                }
+            }
+
+            // 初始化合婚弹窗省市选择器
+            await initProvinceSelectors('pProvinceSelect', 'pCitySelect');
             // 初始化日期选择器
             flatpickr("input[name='pDate']", {
                 locale: "zh",

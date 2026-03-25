@@ -1,5 +1,45 @@
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
     const form = document.getElementById('birthForm');
+
+    // 加载省市数据
+    async function initProvinceSelectors(provinceElId, cityElId) {
+        const provinceSelect = document.getElementById(provinceElId);
+        const citySelect = document.getElementById(cityElId);
+        if (!provinceSelect || !citySelect) return;
+
+        try {
+            const response = await fetch('js/data/province.json');
+            if (!response.ok) throw new Error('Failed to load province data');
+            const data = await response.json();
+
+            // 填充省份
+            Object.keys(data).forEach(province => {
+                const opt = document.createElement('option');
+                opt.value = province;
+                opt.textContent = province;
+                provinceSelect.appendChild(opt);
+            });
+
+            // 省份变更监听
+            provinceSelect.addEventListener('change', function () {
+                const province = this.value;
+                citySelect.innerHTML = '<option value="">请选择城市</option>';
+                if (province && data[province]) {
+                    data[province].forEach(city => {
+                        const opt = document.createElement('option');
+                        opt.value = city;
+                        opt.textContent = city;
+                        citySelect.appendChild(opt);
+                    });
+                }
+            });
+        } catch (error) {
+            console.error('Province data loading error:', error);
+        }
+    }
+
+    // 初始化首页省市选择器
+    await initProvinceSelectors('provinceSelect', 'citySelect');
 
     // 初始化日期选择器
     if (document.getElementById('birthDate')) {
