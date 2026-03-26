@@ -38,8 +38,10 @@ class GeminiClient
             'model' => $this->model,
             'messages' => $messages,
             'temperature' => 0.7,
-            'max_tokens' => 2000
+            'max_tokens' => 8000
         ];
+
+        error_log('AI API Request: model=' . $this->model . ', url=' . $url);
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -70,6 +72,7 @@ class GeminiClient
             return $result['choices'][0]['message']['content'];
         }
 
+        error_log('AI API unexpected response structure: ' . substr($response, 0, 500));
         return $this->demoGenerate($prompt, $systemPrompt);
     }
 

@@ -76,4 +76,4 @@ define('YUANFENJU_API_KEY', $_ENV['YUANFENJU_API_KEY'] ?? getenv('YUANFENJU_API_
 date_default_timezone_set('Asia/Shanghai');
 
 // 演示模式 - 从 .env 读取
-define('DEMO_MODE', strtolower(getenv('DEMO_MODE') ?: 'false') === 'true');
+define('DEMO_MODE', strtolower($_ENV['DEMO_MODE'] ?? getenv('DEMO_MODE') ?: 'false') === 'true');
