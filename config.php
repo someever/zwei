@@ -4,7 +4,7 @@
  */
 
 // 增加脚本执行时间限制，防止 AI 调用超时
-set_time_limit(120);
+set_time_limit(300);
 
 // 关闭错误显示，防止警告破坏 JSON 响应（错误会记录在日志中）
 ini_set('display_errors', '0');
