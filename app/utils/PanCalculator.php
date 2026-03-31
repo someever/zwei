@@ -103,7 +103,6 @@ class PanCalculator
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
             $json = curl_exec($ch);
-            curl_close($ch);
 
             if (!$json)
                 return false;
