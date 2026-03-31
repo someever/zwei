@@ -38,7 +38,8 @@ class GeminiClient
             'model' => $this->model,
             'messages' => $messages,
             'temperature' => 0.7,
-            'max_tokens' => 8000
+            'max_tokens' => 8000,
+            'stream' => true // 开启流式以绕过 Nginx 超时
         ];
 
         // error_log('AI API Request: model=' . $this->model . ', url=' . $url);
@@ -49,13 +50,43 @@ class GeminiClient
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
+            'Accept: text/event-stream',
             'Authorization: Bearer ' . $this->apiKey
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, 300);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
-        $response = curl_exec($ch);
+        // Nginx 防止超时：在耗时开始前打出一大段空格强制刷新 Response Header
+        echo str_repeat(" ", 4096);
+        @flush();
+        @ob_flush();
+
+        $responseContent = '';
+        $buffer = '';
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function($curl, $data) use (&$responseContent, &$buffer) {
+            echo " "; // 大模型生成流期间不断输出空格"续命"
+            @flush();
+            @ob_flush();
+            
+            $buffer .= $data;
+            while (($pos = strpos($buffer, "\n")) !== false) {
+                $line = substr($buffer, 0, $pos);
+                $buffer = substr($buffer, $pos + 1);
+                
+                if (strpos($line, 'data: ') === 0) {
+                    $jsonStr = substr($line, 6);
+                    if (trim($jsonStr) === '[DONE]') continue;
+                    $chunk = json_decode($jsonStr, true);
+                    if (isset($chunk['choices'][0]['delta']['content'])) {
+                        $responseContent .= $chunk['choices'][0]['delta']['content'];
+                    }
+                }
+            }
+            return strlen($data);
+        });
+
+        curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         if (curl_errno($ch)) {
@@ -64,17 +95,15 @@ class GeminiClient
         }
 
         if ($httpCode !== 200) {
-            error_log('AI API HTTP error: ' . $httpCode . ' Response: ' . $response);
+            error_log('AI API HTTP error: ' . $httpCode);
             return $this->demoGenerate($prompt, $systemPrompt);
         }
 
-        $result = json_decode($response, true);
-
-        if (isset($result['choices'][0]['message']['content'])) {
-            return $result['choices'][0]['message']['content'];
+        if (!empty($responseContent)) {
+            return $responseContent;
         }
 
-        error_log('AI API unexpected response structure: ' . substr($response, 0, 500));
+        error_log('AI API empty response');
         return $this->demoGenerate($prompt, $systemPrompt);
     }
 
