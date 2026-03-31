@@ -41,7 +41,7 @@ class GeminiClient
             'max_tokens' => 8000
         ];
 
-        error_log('AI API Request: model=' . $this->model . ', url=' . $url);
+        // error_log('AI API Request: model=' . $this->model . ', url=' . $url);
 
         $ch = curl_init($url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
