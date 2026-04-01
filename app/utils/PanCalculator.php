@@ -108,7 +108,6 @@ class PanCalculator
 
                 $json = curl_exec($ch);
             }
-            error_log("YuanFenJu API Response: " . $json);
 
             if (!$json)
                 return false;

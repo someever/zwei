@@ -21,8 +21,6 @@ class GeminiClient
      */
     public function generate($prompt, $systemPrompt = null)
     {
-        error_log("========== AI API Prompts ==========\nSystem Prompt:\n" . ($systemPrompt ?? 'None') . "\n\nUser Prompt:\n" . $prompt . "\n=====================================");
-
         // 演示模式
         if (DEMO_MODE) {
             return $this->demoGenerate($prompt, $systemPrompt);
