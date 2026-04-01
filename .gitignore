@@ -25,3 +25,6 @@ cert/*.pem
 # PHP
 vendor/
 composer.lock
+
+# Mock Data
+public/js/data/panDemo.json

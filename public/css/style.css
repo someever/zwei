@@ -321,10 +321,92 @@ body {
 /* Reading Content */
 .reading-content {
     background: #f9fafb;
-    padding: 20px;
+    padding: 24px 28px;
     border-radius: 12px;
-    line-height: 1.8;
-    white-space: pre-wrap;
+    line-height: 1.9;
+    font-size: 0.95rem;
+    color: #2d3748;
+}
+
+.reading-content h3 {
+    font-size: 1.15rem;
+    color: var(--primary-color);
+    margin: 28px 0 14px 0;
+    padding: 8px 0 8px 14px;
+    border-left: 4px solid var(--primary-color);
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.06), transparent);
+    border-radius: 0 6px 6px 0;
+}
+
+.reading-content h3:first-child {
+    margin-top: 0;
+}
+
+.reading-content h4 {
+    font-size: 1.05rem;
+    color: #4a3a6b;
+    margin: 20px 0 10px 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--secondary-color);
+}
+
+.reading-content h5 {
+    font-size: 0.98rem;
+    color: #5a4a7a;
+    margin: 16px 0 8px 0;
+}
+
+.reading-content p {
+    margin: 10px 0;
+    text-indent: 2em;
+    text-align: justify;
+}
+
+.reading-content strong {
+    color: #1a1035;
+    font-weight: 700;
+}
+
+.reading-content ul,
+.reading-content ol {
+    margin: 10px 0 10px 1.5em;
+    padding: 0;
+}
+
+.reading-content ul {
+    list-style: none;
+}
+
+.reading-content ul li {
+    position: relative;
+    padding-left: 1.2em;
+    margin-bottom: 6px;
+}
+
+.reading-content ul li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.reading-content ol li {
+    margin-bottom: 6px;
+    padding-left: 0.3em;
+}
+
+.reading-content hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139,92,246,0.25), transparent);
+    margin: 24px 0;
+}
+
+.reading-content em {
+    color: var(--primary-dark);
+    font-style: normal;
+    border-bottom: 1px dashed var(--primary-color);
 }
 
 /* Reading Options */
@@ -444,13 +526,83 @@ body {
     box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
 }
 
-/* Reading Result */
+/* Reading Result (reuse reading-content styles) */
 .reading-result-content {
     background: #f9fafb;
-    padding: 24px;
+    padding: 24px 28px;
     border-radius: 12px;
     line-height: 1.9;
-    white-space: pre-wrap;
+    font-size: 0.95rem;
+    color: #2d3748;
+}
+
+.reading-result-content h3,
+.reading-result-content h4,
+.reading-result-content h5,
+.reading-result-content p,
+.reading-result-content strong,
+.reading-result-content ul,
+.reading-result-content ol,
+.reading-result-content li,
+.reading-result-content hr,
+.reading-result-content em {
+    /* 继承 .reading-content 的样式 */
+}
+
+.reading-result-content h3 {
+    font-size: 1.15rem;
+    color: var(--primary-color);
+    margin: 28px 0 14px 0;
+    padding: 8px 0 8px 14px;
+    border-left: 4px solid var(--primary-color);
+    background: linear-gradient(90deg, rgba(139, 92, 246, 0.06), transparent);
+    border-radius: 0 6px 6px 0;
+}
+
+.reading-result-content h3:first-child { margin-top: 0; }
+
+.reading-result-content h4 {
+    font-size: 1.05rem;
+    color: #4a3a6b;
+    margin: 20px 0 10px 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--secondary-color);
+}
+
+.reading-result-content p {
+    margin: 10px 0;
+    text-indent: 2em;
+    text-align: justify;
+}
+
+.reading-result-content strong { color: #1a1035; font-weight: 700; }
+
+.reading-result-content ul,
+.reading-result-content ol { margin: 10px 0 10px 1.5em; padding: 0; }
+
+.reading-result-content ul { list-style: none; }
+
+.reading-result-content ul li {
+    position: relative;
+    padding-left: 1.2em;
+    margin-bottom: 6px;
+}
+
+.reading-result-content ul li::before {
+    content: '▸';
+    position: absolute;
+    left: 0;
+    color: var(--primary-color);
+    font-weight: bold;
+}
+
+.reading-result-content ol li { margin-bottom: 6px; padding-left: 0.3em; }
+
+.reading-result-content hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(139,92,246,0.25), transparent);
+    margin: 24px 0;
 }
 
 .error {

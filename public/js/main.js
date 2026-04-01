@@ -51,6 +51,15 @@ document.addEventListener('DOMContentLoaded', async function () {
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
 
+            // 必填校验
+            const name = form.querySelector('#name').value.trim();
+            const birthDate = form.querySelector('#birthDate').value.trim();
+            const province = form.querySelector('#provinceSelect').value;
+
+            if (!name) { alert('请输入姓名'); return; }
+            if (!birthDate) { alert('请选择出生日期'); return; }
+            if (!province) { alert('请选择出生省份'); return; }
+
             const submitBtn = form.querySelector('button[type="submit"]');
             submitBtn.disabled = true;
             submitBtn.textContent = '🔮 正在拨通天机...';

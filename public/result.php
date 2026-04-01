@@ -23,24 +23,100 @@ $readingId = $_SESSION['reading_id'];
 $overallReading = $_SESSION['overall_reading'] ?? '';
 $purchasedTypes = $_SESSION['purchased_types'] ?? [];
 
-// Markdown转HTML
+// Markdown转HTML（逐行解析器）
 function markdownToHtml($text)
 {
-    $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-    // 标题
-    $text = preg_replace('/^## (.+)$/m', '<h3>$1</h3>', $text);
-    $text = preg_replace('/^# (.+)$/m', '<h2>$1</h2>', $text);
+    $lines = explode("\n", $text);
+    $html = '';
+    $inList = false;      // 当前是否在列表中
+    $listType = '';       // ul 或 ol
+    $inParagraph = false; // 当前是否在段落中
+    
+    foreach ($lines as $line) {
+        $trimmed = trim($line);
+        
+        // 空行：关闭所有块
+        if ($trimmed === '') {
+            if ($inList) { $html .= "</{$listType}>"; $inList = false; }
+            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            continue;
+        }
+        
+        // 水平线
+        if (preg_match('/^---+$/', $trimmed) || preg_match('/^\*\*\*+$/', $trimmed)) {
+            if ($inList) { $html .= "</{$listType}>"; $inList = false; }
+            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            $html .= '<hr>';
+            continue;
+        }
+        
+        // 标题
+        if (preg_match('/^(#{1,5})\s+(.+)$/', $trimmed, $m)) {
+            if ($inList) { $html .= "</{$listType}>"; $inList = false; }
+            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            $level = strlen($m[1]) + 1; // # → h2, ## → h3, ### → h4 ...
+            if ($level > 6) $level = 6;
+            $content = applyInline($m[2]);
+            $html .= "<h{$level}>{$content}</h{$level}>";
+            continue;
+        }
+        
+        // 无序列表
+        if (preg_match('/^[-*]\s+(.+)$/', $trimmed, $m)) {
+            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if (!$inList || $listType !== 'ul') {
+                if ($inList) $html .= "</{$listType}>";
+                $html .= '<ul>';
+                $inList = true;
+                $listType = 'ul';
+            }
+            $html .= '<li>' . applyInline($m[1]) . '</li>';
+            continue;
+        }
+        
+        // 有序列表
+        if (preg_match('/^\d+\.\s+(.+)$/', $trimmed, $m)) {
+            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if (!$inList || $listType !== 'ol') {
+                if ($inList) $html .= "</{$listType}>";
+                $html .= '<ol>';
+                $inList = true;
+                $listType = 'ol';
+            }
+            $html .= '<li>' . applyInline($m[1]) . '</li>';
+            continue;
+        }
+        
+        // 普通文本行（段落）
+        if ($inList) { $html .= "</{$listType}>"; $inList = false; }
+        if (!$inParagraph) {
+            $html .= '<p>';
+            $inParagraph = true;
+        } else {
+            $html .= '<br>';
+        }
+        $html .= applyInline(htmlspecialchars($trimmed, ENT_QUOTES, 'UTF-8'));
+    }
+    
+    // 关闭未闭合的块
+    if ($inList) $html .= "</{$listType}>";
+    if ($inParagraph) $html .= '</p>';
+    
+    return $html;
+}
+
+// 行内格式处理
+function applyInline($text)
+{
+    // 先转义（标题和列表内容还没转义）
+    if (strpos($text, '<') === false) {
+        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
     // 加粗
     $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
-    // 列表
-    $text = preg_replace('/^- (.+)$/m', '<li>$1</li>', $text);
-    $text = preg_replace('/^(\d+)\. (.+)$/m', '<li>$2</li>', $text);
-    // 换行
-    $text = preg_replace('/\n\n/', '</p><p>', $text);
-    $text = preg_replace('/\n/', '<br>', $text);
-    // 包装li
-    $text = preg_replace('/(<li>.*?<\/li>)/s', '<ul>$1</ul>', $text);
-    return '<p>' . $text . '</p>';
+    // 斜体
+    $text = preg_replace('/\*(.+?)\*/', '<em>$1</em>', $text);
+    return $text;
 }
 
 $overallReading = markdownToHtml($overallReading);
