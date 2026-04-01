@@ -103,6 +103,7 @@ class PanCalculator
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
             $json = curl_exec($ch);
+            error_log("YuanFenJu API Response: " . $json);
 
             if (!$json)
                 return false;
