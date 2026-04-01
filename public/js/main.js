@@ -20,17 +20,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 provinceSelect.appendChild(opt);
             });
 
-            // 省份变更监听
+            // 省份变更监听: 自动把城市设为主省的第一个城市（省会）
             provinceSelect.addEventListener('change', function () {
                 const province = this.value;
-                citySelect.innerHTML = '<option value="">请选择城市</option>';
-                if (province && data[province]) {
-                    data[province].forEach(city => {
-                        const opt = document.createElement('option');
-                        opt.value = city;
-                        opt.textContent = city;
-                        citySelect.appendChild(opt);
-                    });
+                if (province && data[province] && data[province].length > 0) {
+                    citySelect.value = data[province][0];
+                } else {
+                    citySelect.value = '';
                 }
             });
         } catch (error) {

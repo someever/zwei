@@ -71,19 +71,12 @@
                     </div>
                 </div>
 
-                <div class="form-group row">
-                    <div class="col">
-                        <label for="provinceSelect">出生省份</label>
-                        <select id="provinceSelect" name="province" required>
-                            <option value="">请选择省份</option>
-                        </select>
-                    </div>
-                    <div class="col">
-                        <label for="citySelect">出生城市</label>
-                        <select id="citySelect" name="city" required>
-                            <option value="">请选择城市</option>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label for="provinceSelect">出生地点</label>
+                    <select id="provinceSelect" name="province" required>
+                        <option value="">请选择省份/直辖市</option>
+                    </select>
+                    <input type="hidden" id="citySelect" name="city" value="">
                 </div>
 
                 <button type="submit" class="btn-primary">开始算命</button>
