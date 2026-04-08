@@ -32,3 +32,4 @@ public/js/data/panDemo.json
 # Logs
 server.log
 *.log
+test_wechat_pay.php
