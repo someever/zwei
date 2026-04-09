@@ -103,7 +103,9 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                 <button class="btn-primary btn-check" id="refresh-btn" onclick="checkStatus()">
                     🔄 刷新状态
                 </button>
-                <a href="index.php" class="back-link">← 返回首页</a>
+                <div style="text-align: center; margin-top: 16px;">
+                    <a href="index.php?new=1" style="color: var(--text-light); text-decoration: none; font-size: 0.95rem;">← 放弃等待，重新算一次</a>
+                </div>
             </div>
         </main>
 

@@ -40,13 +40,19 @@ try {
     $latestReading = $readingModel->getLatestByUserId($user['id']);
     
     if ($latestReading && in_array($latestReading['status'], ['pending', 'processing'])) {
-        // 返回现有解读 ID，让前端去 processing 页面等待
-        $result['success'] = true;
-        $result['reading_id'] = $latestReading['id'];
-        $result['status'] = $latestReading['status'];
-        $result['message'] = '您有正在进行的解读';
-        echo json_encode($result, JSON_UNESCAPED_UNICODE);
-        exit;
+        // 超过10分钟的记录视为超时，自动标记为 failed，允许重新提交
+        $createdAt = strtotime($latestReading['created_at']);
+        if (time() - $createdAt > 600) {
+            $readingModel->updateStatus($latestReading['id'], 'failed');
+        } else {
+            // 返回现有解读 ID，让前端去 processing 页面等待
+            $result['success'] = true;
+            $result['reading_id'] = $latestReading['id'];
+            $result['status'] = $latestReading['status'];
+            $result['message'] = '您有正在进行的解读';
+            echo json_encode($result, JSON_UNESCAPED_UNICODE);
+            exit;
+        }
     }
 
     // 排盘计算
@@ -100,3 +106,11 @@ try {
 }
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+// 提交成功后，在后台启动独立进程生成 AI 解读
+if (!empty($result['success']) && !empty($readingId)) {
+    $workerScript = __DIR__ . '/../../scripts/generate_worker.php';
+    $phpBin = PHP_BINARY;
+    $cmd = sprintf('%s %s %d > /dev/null 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), $readingId);
+    exec($cmd);
+}

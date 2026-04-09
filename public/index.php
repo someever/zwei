@@ -9,17 +9,23 @@ require_once __DIR__ . '/../app/models/Reading.php';
 
 session_start();
 
-// 检查用户是否有正在进行的解读
+// 如果带了 ?new=1，说明用户主动要回首页重新算
+$forceNew = isset($_GET['new']) && $_GET['new'] == '1';
+
 $userId = $_SESSION['user_id'] ?? null;
-if ($userId) {
+if ($userId && !$forceNew) {
     $readingModel = new Reading();
     $latestReading = $readingModel->getLatestByUserId($userId);
     
-    // 只有正在进行的解读才跳转到处理中页面
-    // 已完成的解读不自动跳转，让用户可以选择提交新的或查看历史
     if ($latestReading && in_array($latestReading['status'], ['pending', 'processing'])) {
-        header('Location: processing.php');
-        exit;
+        // 超过10分钟的 processing 记录视为超时，自动标记为 failed
+        $createdAt = strtotime($latestReading['created_at']);
+        if (time() - $createdAt > 600) {
+            $readingModel->updateStatus($latestReading['id'], 'failed');
+        } else {
+            header('Location: processing.php');
+            exit;
+        }
     }
 }
 ?>
