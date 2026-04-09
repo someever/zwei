@@ -1,3 +1,28 @@
+<?php
+/**
+ * 首页 - 检查用户状态，引导到正确页面
+ */
+
+require_once __DIR__ . '/../config.php';
+require_once __DIR__ . '/../app/utils/Database.php';
+require_once __DIR__ . '/../app/models/Reading.php';
+
+session_start();
+
+// 检查用户是否有正在进行的解读
+$userId = $_SESSION['user_id'] ?? null;
+if ($userId) {
+    $readingModel = new Reading();
+    $latestReading = $readingModel->getLatestByUserId($userId);
+    
+    // 只有正在进行的解读才跳转到处理中页面
+    // 已完成的解读不自动跳转，让用户可以选择提交新的或查看历史
+    if ($latestReading && in_array($latestReading['status'], ['pending', 'processing'])) {
+        header('Location: processing.php');
+        exit;
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="zh-CN">
 

@@ -103,6 +103,7 @@ class Database
                 marriage_reading TEXT,
                 wealth_reading TEXT,
                 health_reading TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 

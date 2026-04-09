@@ -1,17 +1,15 @@
 <?php
 /**
- * 排盘API
+ * 排盘API - 同步调用 Gemini，但前端轮询状态
  */
 
 require_once __DIR__ . '/../../config.php';
 require_once __DIR__ . '/../../app/utils/Database.php';
 require_once __DIR__ . '/../../app/utils/PanCalculator.php';
-require_once __DIR__ . '/../../app/utils/GeminiClient.php';
 require_once __DIR__ . '/../../app/models/User.php';
 require_once __DIR__ . '/../../app/models/Reading.php';
 
 header('Content-Type: application/json; charset=utf-8');
-set_time_limit(300);
 
 session_start();
 
@@ -32,6 +30,25 @@ try {
         }
     }
 
+    // 创建/获取用户
+    $userModel = new User();
+    $user = $userModel->createDemoUser();
+    $_SESSION['user_id'] = $user['id'];
+
+    // 检查是否有未完成的解读
+    $readingModel = new Reading();
+    $latestReading = $readingModel->getLatestByUserId($user['id']);
+    
+    if ($latestReading && in_array($latestReading['status'], ['pending', 'processing'])) {
+        // 返回现有解读 ID，让前端去 processing 页面等待
+        $result['success'] = true;
+        $result['reading_id'] = $latestReading['id'];
+        $result['status'] = $latestReading['status'];
+        $result['message'] = '您有正在进行的解读';
+        echo json_encode($result, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     // 排盘计算
     $calculator = new PanCalculator();
     $panData = $calculator->calculate(
@@ -48,18 +65,7 @@ try {
         ]
     );
 
-    // 生成命盘整体解读
-    $panText = $calculator->formatForGemini($panData);
-    $gemini = new GeminiClient();
-    $overallReading = $gemini->generateOverallReading($panText);
-
-    // 创建/获取用户
-    $userModel = new User();
-    $user = $userModel->createDemoUser();
-    $_SESSION['user_id'] = $user['id'];
-
-    // 保存算命记录
-    $readingModel = new Reading();
+    // 保存算命记录（状态为 processing）
     $readingId = $readingModel->create([
         'user_id' => $user['id'],
         'session_id' => session_id(),
@@ -75,18 +81,19 @@ try {
         'zhongshu' => $panData['zhongshu']['zhongshu'],
         'shichen' => $panData['shichen'],
         'pan_data' => $panData,
-        'overall_reading' => $overallReading
+        'overall_reading' => '',
+        'status' => 'processing'
     ]);
 
+    // 保存到 session
     $_SESSION['pan_data'] = $panData;
     $_SESSION['reading_id'] = $readingId;
-    $_SESSION['overall_reading'] = $overallReading;
-    $_SESSION['purchased_types'] = []; // 初始未购买任何解读
+    $_SESSION['purchased_types'] = [];
 
     $result['success'] = true;
-    $result['pan_data'] = $panData;
     $result['reading_id'] = $readingId;
-    $result['overall_reading'] = $overallReading;
+    $result['status'] = 'processing';
+    $result['message'] = '排盘完成，正在生成解读...';
 
 } catch (Exception $e) {
     $result['message'] = $e->getMessage();

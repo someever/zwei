@@ -98,12 +98,10 @@ document.addEventListener('DOMContentLoaded', async function () {
 
                 if (result.success) {
                     // 保存到sessionStorage
-                    sessionStorage.setItem('pan_data', JSON.stringify(result.pan_data));
                     sessionStorage.setItem('reading_id', result.reading_id);
-                    sessionStorage.setItem('overall_reading', result.overall_reading);
 
-                    // 跳转到结果页
-                    window.location.href = '/result.php';
+                    // 跳转到处理中页面（异步处理）
+                    window.location.href = '/processing.php';
                 } else {
                     alert('排盘失败: ' + result.message);
                     submitBtn.disabled = false;
