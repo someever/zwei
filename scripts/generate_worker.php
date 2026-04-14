@@ -33,14 +33,17 @@ try {
     $calculator = new PanCalculator();
     $panText = $calculator->formatForGemini($reading['pan_data']);
 
+    error_log("generate_worker: about to call Gemini API for reading {$readingId}");
+    $startTime = time();
     $gemini = new GeminiClient();
     $overallReading = $gemini->generateOverallReading($panText);
+    $duration = time() - $startTime;
 
     $readingModel->updateOverallReading($readingId, $overallReading);
-    error_log("generate_worker: reading {$readingId} completed");
+    error_log("generate_worker: reading {$readingId} completed successfully in {$duration} seconds");
 
 } catch (Exception $e) {
     $readingModel->updateStatus($readingId, 'failed');
-    error_log("generate_worker: reading {$readingId} failed - " . $e->getMessage());
+    error_log("generate_worker ERROR: reading {$readingId} failed - " . $e->getMessage() . " at " . $e->getFile() . ":" . $e->getLine());
     exit(1);
 }

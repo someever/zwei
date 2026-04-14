@@ -112,5 +112,6 @@ if (!empty($result['success']) && !empty($readingId)) {
     $workerScript = __DIR__ . '/../../scripts/generate_worker.php';
     $phpBin = PHP_BINARY;
     $cmd = sprintf('%s %s %d > /dev/null 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), $readingId);
+    error_log("pan.php: Triggering background worker for reading ID {$readingId}. Command: {$cmd}");
     exec($cmd);
 }

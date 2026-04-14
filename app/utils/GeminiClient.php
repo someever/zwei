@@ -141,6 +141,8 @@ ALGO;
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
+        error_log("GeminiClient: Sending HTTP POST to " . $url . " using model " . $this->model);
+
         // Nginx 防止超时：在耗时开始前打出一大段空格强制刷新 Response Header
         echo str_repeat(" ", 4096);
         @flush();
@@ -173,6 +175,8 @@ ALGO;
 
         curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        
+        error_log("GeminiClient: cURL exec finished. HTTP Code: {$httpCode}");
 
         if (curl_errno($ch)) {
             error_log('AI API cURL error: ' . curl_error($ch));
