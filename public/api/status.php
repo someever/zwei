@@ -33,31 +33,7 @@ try {
         throw new Exception('解读记录不存在');
     }
     
-    // 如果状态是 processing 且没有解读内容，调用 Gemini
-    if ($reading['status'] === 'processing' && empty($reading['overall_reading'])) {
-        try {
-            // 格式化命盘数据
-            $calculator = new PanCalculator();
-            $panText = $calculator->formatForGemini($reading['pan_data']);
-            
-            // 调用 Gemini 生成整体解读
-            $gemini = new GeminiClient();
-            $overallReading = $gemini->generateOverallReading($panText);
-            
-            // 更新结果
-            $readingModel->updateOverallReading($readingId, $overallReading);
-            
-            // 更新返回数据
-            $reading['status'] = 'completed';
-            $reading['overall_reading'] = $overallReading;
-            
-        } catch (Exception $e) {
-            // 处理失败
-            $readingModel->updateStatus($readingId, 'failed');
-            $result['error'] = $e->getMessage();
-            $reading['status'] = 'failed';
-        }
-    }
+    // 此时后台由 generate_worker.php 负责生成，status.php 仅负责返回查询状态，不阻断、不重复发起请求
     
     $result['success'] = true;
     $result['reading_id'] = $readingId;
