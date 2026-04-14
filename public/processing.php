@@ -138,10 +138,14 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                     isGenerating = false;
                 } else {
                     isGenerating = false;
+                    // 自动轮询：每3秒检查一次状态，不再只依靠切换标签页的 visibilitychange
+                    setTimeout(startGeneration, 3000);
                 }
             } catch (error) {
                 console.error('Error:', error);
                 isGenerating = false;
+                // 即使网络错误也隔一段时间重试
+                setTimeout(startGeneration, 5000);
             }
         }
         
