@@ -27,7 +27,7 @@ vendor/
 composer.lock
 
 # Mock Data
-public/js/data/panDemo.json
+public/js/data/panDemo*.json
 
 # Logs
 server.log

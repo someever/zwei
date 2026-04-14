@@ -40,6 +40,20 @@ class PanCalculator
     const DIZHI = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
     const TIANGAN = ['甲', '乙', '丙', '丁', '戊', '己', '庚', '辛', '壬', '癸'];
 
+    // 天干四化表（禄权科忌）- 王亭之体系
+    const SIHUA_TABLE = [
+        '甲' => ['禄' => '廉贞', '权' => '破军', '科' => '武曲', '忌' => '太阳'],
+        '乙' => ['禄' => '天机', '权' => '天梁', '科' => '紫微', '忌' => '太阴'],
+        '丙' => ['禄' => '天同', '权' => '天机', '科' => '文昌', '忌' => '廉贞'],
+        '丁' => ['禄' => '太阴', '权' => '天同', '科' => '天机', '忌' => '巨门'],
+        '戊' => ['禄' => '贪狼', '权' => '太阴', '科' => '右弼', '忌' => '天机'],
+        '己' => ['禄' => '武曲', '权' => '贪狼', '科' => '天梁', '忌' => '文曲'],
+        '庚' => ['禄' => '太阳', '权' => '武曲', '科' => '太阴', '忌' => '天同'],
+        '辛' => ['禄' => '巨门', '权' => '太阳', '科' => '文曲', '忌' => '文昌'],
+        '壬' => ['禄' => '天梁', '权' => '紫微', '科' => '左辅', '忌' => '武曲'],
+        '癸' => ['禄' => '破军', '权' => '巨门', '科' => '太阴', '忌' => '贪狼'],
+    ];
+
     public function calculate($year, $month, $day, $hour, $minute, $gender, $location = [])
     {
         $locInfo = is_array($location) ? $location : ['location' => $location];
@@ -113,6 +127,7 @@ class PanCalculator
                 return false;
 
             $res = json_decode($json, true);
+            //error_log("YuanFenJu API Raw Response: " . $json);
             if (!isset($res['errcode']) || $res['errcode'] !== 0) {
                 error_log("YuanFenJu API Error: " . ($res['errmsg'] ?? 'Unknown error'));
                 return false;
@@ -353,26 +368,260 @@ class PanCalculator
         $output .= "时干支: {$pan['lunar_date']['ganzhi_hour']}\n";
         $output .= "时辰: {$pan['shichen']}\n";
         $output .= "命局: " . ($pan['zhongshu']['zhongshu'] ?? '') . "\n";
+        // 当前时间和命主年龄（必须明确告诉 AI，防止用训练数据中的旧年份）
+        $currentYear = (int) date('Y');
+        $currentMonth = (int) date('m');
+        $currentDay = (int) date('d');
+        $output .= "\n【重要：当前真实时间】\n";
+        $output .= "今天是 {$currentYear}年{$currentMonth}月{$currentDay}日（这是真实的当前日期，所有分析必须以此为基准）\n";
+
+        // 今年流年天干
+        $tiangan = self::TIANGAN;
+        $yearGanIndex = ($currentYear - 4) % 10;
+        $currentYearGan = $tiangan[$yearGanIndex];
+        $output .= "今年流年天干: {$currentYearGan} ({$currentYear}年)\n";
+
+        // 命主年龄
+        $birthYear = $pan['solar_date']['year'] ?? null;
+        $currentAge = $birthYear ? ($currentYear - $birthYear) : null;
+        if ($currentAge) {
+            $output .= "命主出生年: {$birthYear}年\n";
+            $output .= "命主当前年龄: {$currentAge}岁\n";
+        }
         if (!empty($pan['pan']['jieqi'])) {
             $output .= "节气: " . implode('、', $pan['pan']['jieqi']) . "\n";
+        }
+
+        // 大运一览表（帮助 AI 准确对应年龄段、宫位和四化）
+        if (!empty($pan['api_data']['gong_pan']) && $currentAge) {
+            // 先建立宫位→主星的映射表
+            $palaceStarMap = [];
+            foreach ($pan['api_data']['gong_pan'] as $item) {
+                $stars = [];
+                if (!empty($item['ziweixing'])) {
+                    $s = $item['ziweixing'];
+                    $state = (!empty($item['ziweixing_xingyao']) && $item['ziweixing_xingyao'] !== '无') ? "({$item['ziweixing_xingyao']})" : '';
+                    $stars[] = $s . $state;
+                }
+                if (!empty($item['tianfuxing'])) {
+                    $s = $item['tianfuxing'];
+                    $state = (!empty($item['tianfuxing_xingyao']) && $item['tianfuxing_xingyao'] !== '无') ? "({$item['tianfuxing_xingyao']})" : '';
+                    $stars[] = $s . $state;
+                }
+                $palaceStarMap[$item['minggong']] = $stars;
+            }
+
+            // 建立星→所在宫位的映射表（用于标注四化落宫）
+            $starPalaceMap = [];
+            foreach ($pan['api_data']['gong_pan'] as $item) {
+                $pName = $item['minggong'];
+                foreach (['ziweixing', 'tianfuxing', 'monthxing', 'hourxing', 'yearganxing', 'qitaxing'] as $field) {
+                    if (!empty($item[$field])) {
+                        foreach (explode(',', $item[$field]) as $sn) {
+                            $sn = trim($sn);
+                            if ($sn && $sn !== '无' && $sn !== '空') {
+                                $starPalaceMap[$sn] = $pName;
+                            }
+                        }
+                    }
+                }
+            }
+
+            $daxianList = [];
+            $currentDaxian = null;
+            foreach ($pan['api_data']['gong_pan'] as $item) {
+                if (!empty($item['daxian'])) {
+                    $parts = explode('-', $item['daxian']);
+                    if (count($parts) === 2) {
+                        $startAge = (int) $parts[0];
+                        $endAge = (int) $parts[1];
+                        if ($endAge <= 100) {
+                            $gan = mb_substr($item['yinshou'], 0, 1);
+                            $entry = [
+                                'range' => $item['daxian'],
+                                'palace' => $item['minggong'],
+                                'yinshou' => $item['yinshou'],
+                                'gan' => $gan,
+                                'stars' => $palaceStarMap[$item['minggong']] ?? [],
+                            ];
+                            // 计算该大运天干的四化
+                            if (isset(self::SIHUA_TABLE[$gan])) {
+                                $entry['sihua'] = self::SIHUA_TABLE[$gan];
+                                // 标注四化落宫
+                                $sihuaWithPalace = [];
+                                foreach (self::SIHUA_TABLE[$gan] as $type => $star) {
+                                    $landPalace = $starPalaceMap[$star] ?? '未知';
+                                    $sihuaWithPalace[$type] = "{$star}→{$landPalace}";
+                                }
+                                $entry['sihua_detail'] = $sihuaWithPalace;
+                            }
+                            $daxianList[$startAge] = $entry;
+                            if ($currentAge >= $startAge && $currentAge <= $endAge) {
+                                $currentDaxian = $entry;
+                            }
+                        }
+                    }
+                }
+            }
+            ksort($daxianList);
+
+            $output .= "\n【大运一览表】（每段大运对应的宫位、主星和四化）\n";
+            foreach ($daxianList as $start => $info) {
+                $marker = '';
+                if ($currentDaxian && $info['range'] === $currentDaxian['range']) {
+                    $marker = ' ★当前大运★';
+                }
+                $starsStr = !empty($info['stars']) ? implode('、', $info['stars']) : '无主星';
+                $output .= "\n{$info['range']}岁 → {$info['palace']}({$info['yinshou']}) 主星:[{$starsStr}]{$marker}\n";
+                if (!empty($info['sihua_detail'])) {
+                    $output .= "  大运天干{$info['gan']}的四化: ";
+                    $parts = [];
+                    foreach ($info['sihua_detail'] as $type => $detail) {
+                        $parts[] = "化{$type}:{$detail}";
+                    }
+                    $output .= implode('、', $parts) . "\n";
+                }
+            }
+
+            if ($currentDaxian) {
+                $output .= "\n【当前大运详情】\n";
+                $output .= "命主{$currentAge}岁，正在走 {$currentDaxian['range']}岁 的大运\n";
+                $output .= "大运宫位: {$currentDaxian['palace']}({$currentDaxian['yinshou']})\n";
+                $output .= "大运天干: {$currentDaxian['gan']}\n";
+                if (!empty($currentDaxian['sihua_detail'])) {
+                    $output .= "大运四化: ";
+                    $parts = [];
+                    foreach ($currentDaxian['sihua_detail'] as $type => $detail) {
+                        $parts[] = "化{$type}:{$detail}";
+                    }
+                    $output .= implode('、', $parts) . "\n";
+                }
+            }
+
+            // 流年四化
+            if (isset(self::SIHUA_TABLE[$currentYearGan])) {
+                $output .= "\n【今年流年四化】({$currentYear}年 天干{$currentYearGan})\n";
+                $parts = [];
+                foreach (self::SIHUA_TABLE[$currentYearGan] as $type => $star) {
+                    $landPalace = $starPalaceMap[$star] ?? '未知';
+                    $parts[] = "化{$type}:{$star}→{$landPalace}";
+                }
+                $output .= implode('、', $parts) . "\n";
+            }
         }
         $output .= "\n【命宫与身宫】\n";
         $output .= "命宫: {$pan['pan']['ming_gong']['name']}\n";
         $output .= "身宫: {$pan['pan']['shen_gong']['name']}\n\n";
-        $output .= "【四化星】\n";
+
+        // 生年四化及落宫
+        $output .= "【生年四化】\n";
         foreach ($pan['pan']['four_transformations'] as $transform => $star) {
-            $output .= "{$transform}: {$star}\n";
+            // 找出此四化星落在哪个宫位
+            $landingPalace = '';
+            foreach ($pan['pan']['palaces'] as $pName => $p) {
+                if (in_array($star, $p['stars'] ?? [])) {
+                    $landingPalace = $pName;
+                    break;
+                }
+            }
+            $output .= "{$transform}: {$star}" . ($landingPalace ? " → 落{$landingPalace}" : '') . "\n";
         }
+
+        // 计算命宫飞化（命主侧重点辅助判断）
+        $mingGongGan = '';
+        if (isset($pan['pan']['palaces']['命宫']['gan'])) {
+            $mingGongGan = $pan['pan']['palaces']['命宫']['gan'];
+        } elseif (!empty($pan['api_data']['gong_pan'])) {
+            foreach ($pan['api_data']['gong_pan'] as $item) {
+                if ($item['minggong'] === '命宫') {
+                    $mingGongGan = mb_substr($item['yinshou'], 0, 1);
+                    break;
+                }
+            }
+        }
+        
+        if ($mingGongGan && isset(self::SIHUA_TABLE[$mingGongGan])) {
+            $output .= "\n【命宫飞化】（命宫天干 {$mingGongGan} 的四化落宫，代表命主的执念和行为倾向）\n";
+            foreach (self::SIHUA_TABLE[$mingGongGan] as $type => $star) {
+                // 找出此飞化星落在哪个宫位
+                $landingPalace = '';
+                foreach ($pan['pan']['palaces'] as $pName => $p) {
+                    if (in_array($star, $p['stars'] ?? [])) {
+                        $landingPalace = $pName;
+                        break;
+                    }
+                }
+                // 使用之前 api_data 里的 starPalaceMap 作 fallback 保护
+                if (!$landingPalace && isset($starPalaceMap) && isset($starPalaceMap[$star])) {
+                    $landingPalace = $starPalaceMap[$star];
+                }
+                $output .= "命宫化{$type}: {$star}" . ($landingPalace ? " → 落{$landingPalace}" : '') . "\n";
+            }
+        }
+
         if (!empty($pan['pan']['patterns'])) {
             $output .= "\n【格局】\n";
             $output .= implode('、', $pan['pan']['patterns']) . "\n";
         }
-        $output .= "\n【十二宫位】\n";
-        foreach ($pan['pan']['palaces'] as $palaceName => $palace) {
-            $stars = implode('、', $palace['stars']);
-            $output .= "{$palaceName} ({$palace['gan']}{$palace['zhi']}): {$stars}\n";
-            if (!empty($palace['daxian'])) {
-                $output .= "  ┗ 大限: {$palace['daxian']}\n";
+
+        $output .= "\n【十二宫位详情】\n";
+        // 如果有 API 原始数据，使用详细格式（含星曜状态）
+        if (!empty($pan['api_data']['gong_pan'])) {
+            foreach ($pan['api_data']['gong_pan'] as $item) {
+                $palaceName = $item['minggong'];
+                $output .= "\n◆ {$palaceName} ({$item['yinshou']})";
+                if (!empty($item['daxian'])) {
+                    $output .= " [大限:{$item['daxian']}]";
+                }
+                if (!empty($item['changsheng'])) {
+                    $output .= " [长生:{$item['changsheng']}]";
+                }
+                $output .= "\n";
+
+                // 逐类输出星曜，带状态和四化
+                $starFields = [
+                    ['ziweixing', 'ziweixing_xingyao', 'ziweixing_sihua', '紫微系'],
+                    ['tianfuxing', 'tianfuxing_xingyao', 'tianfuxing_sihua', '天府系'],
+                    ['monthxing', 'monthxing_xingyao', 'monthxing_sihua', '月系'],
+                    ['hourxing', 'hourxing_xingyao', 'hourxing_sihua', '时系'],
+                    ['yearganxing', 'yearganxing_xingyao', 'yearganxing_sihua', '年干系'],
+                    ['yearzhixing', 'yearzhixing_xingyao', 'yearzhixing_sihua', '年支系'],
+                    ['qitaxing', 'qitaxing_xingyao', 'qitaxing_sihua', '其他']
+                ];
+
+                $allStarParts = [];
+                foreach ($starFields as [$nameKey, $stateKey, $sihuaKey, $category]) {
+                    if (empty($item[$nameKey]) || $item[$nameKey] === '无' || $item[$nameKey] === '空')
+                        continue;
+                    $names = explode(',', $item[$nameKey]);
+                    $states = !empty($item[$stateKey]) ? explode(',', $item[$stateKey]) : [];
+                    $sihuas = !empty($item[$sihuaKey]) ? explode(',', $item[$sihuaKey]) : [];
+                    for ($i = 0; $i < count($names); $i++) {
+                        $s = trim($names[$i]);
+                        if (empty($s))
+                            continue;
+                        $state = isset($states[$i]) ? trim($states[$i]) : '';
+                        $sihua = isset($sihuas[$i]) ? trim($sihuas[$i]) : '';
+                        $entry = $s;
+                        if ($state && $state !== '无')
+                            $entry .= "({$state})";
+                        if ($sihua)
+                            $entry .= "[{$sihua}]";
+                        $allStarParts[] = $entry;
+                    }
+                }
+                if (!empty($allStarParts)) {
+                    $output .= "  星曜: " . implode('、', $allStarParts) . "\n";
+                }
+            }
+        } else {
+            // 降级：本地算法数据（无星曜状态）
+            foreach ($pan['pan']['palaces'] as $palaceName => $palace) {
+                $stars = implode('、', $palace['stars']);
+                $output .= "{$palaceName} ({$palace['gan']}{$palace['zhi']}): {$stars}\n";
+                if (!empty($palace['daxian'])) {
+                    $output .= "  ┗ 大限: {$palace['daxian']}\n";
+                }
             }
         }
         return $output;
