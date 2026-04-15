@@ -110,8 +110,12 @@ echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 // 提交成功后，在后台启动独立进程生成 AI 解读
 if (!empty($result['success']) && !empty($readingId)) {
     $workerScript = __DIR__ . '/../../scripts/generate_worker.php';
-    $phpBin = PHP_BINARY;
-    $cmd = sprintf('%s %s %d > /dev/null 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), $readingId);
+    // 在 Web/FPM 环境下，PHP_BINARY 往往是 php-fpm 导致无法执行命令行。改用 'php'
+    $phpBin = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false || strpos(PHP_SAPI, 'cgi') !== false) ? 'php' : PHP_BINARY;
+    $logFile = __DIR__ . '/../../server.log';
+    
+    // 将标准输出和错误输出都重定向到 server.log 而不是 /dev/null
+    $cmd = sprintf('%s %s %d >> %s 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), $readingId, escapeshellarg($logFile));
     error_log("pan.php: Triggering background worker for reading ID {$readingId}. Command: {$cmd}");
     exec($cmd);
 }
