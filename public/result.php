@@ -95,7 +95,7 @@ function markdownToHtml($text)
         } else {
             $html .= '<br>';
         }
-        $html .= applyInline(htmlspecialchars($trimmed, ENT_QUOTES, 'UTF-8'));
+        $html .= applyInline($trimmed);
     }
     
     // 关闭未闭合的块
@@ -108,10 +108,8 @@ function markdownToHtml($text)
 // 行内格式处理
 function applyInline($text)
 {
-    // 先转义（标题和列表内容还没转义）
-    if (strpos($text, '<') === false) {
-        $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-    }
+    // 始终转义 HTML，防止 XSS
+    $text = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
     // 加粗
     $text = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $text);
     // 斜体
@@ -182,63 +180,67 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     exit;
                 }
 
-                // 获取命盘数据
                 $readingModel = new Reading();
                 $reading = $readingModel->getById($readingId);
-                $pan = $reading['pan_data'];
-                $panText = (new PanCalculator())->formatForGemini($pan);
-                $gemini = new GeminiClient();
-
-                switch ($type) {
-                    case 'career':
-                        $content = $gemini->generateCareerReading($panText);
-                        break;
-                    case 'marriage':
-                        // 合婚分析需要另一半信息
-                        $pYear = $_POST['pYear'] ?? '';
-                        $pMonth = $_POST['pMonth'] ?? '';
-                        $pDay = $_POST['pDay'] ?? '';
-                        $pHour = $_POST['pHour'] ?? 0;
-                        $pMinute = $_POST['pMinute'] ?? 0;
-                        $pGender = $_POST['pGender'] ?? '';
-                        $pProvince = $_POST['pProvince'] ?? '';
-                        $pCity = $_POST['pCity'] ?? '';
-
-                        if (!$pYear || !$pMonth || !$pDay || !$pGender) {
-                            $result['need_partner_info'] = true;
-                            echo json_encode($result);
-                            exit;
-                        }
-
-                        // 计算另一半命盘
-                        $calculator = new PanCalculator();
-                        $partnerPan = $calculator->calculate($pYear, $pMonth, $pDay, $pHour, $pMinute, $pGender, [
-                            'province' => $pProvince,
-                            'city' => $pCity
-                        ]);
-                        $partnerPanText = $calculator->formatForGemini($partnerPan);
-
-                        // 区分主次（Gemini 方法是 generateMarriageReading($malePan, $femalePan)）
-                        if ($panData['gender'] === 'male') {
-                            $content = $gemini->generateMarriageReading($panText, $partnerPanText);
-                        } else {
-                            $content = $gemini->generateMarriageReading($partnerPanText, $panText);
-                        }
-                        break;
-                    case 'wealth':
-                        $content = $gemini->generateWealthReading($panText);
-                        break;
-                    case 'health':
-                        $content = $gemini->generateHealthReading($panText);
-                        break;
-                    default:
-                        throw new Exception('无效的解读类型');
+                
+                // 如果数据库已经有结果了，直接返回
+                $field = $type . '_reading';
+                if (!empty($reading[$field])) {
+                    $result['success'] = true;
+                    $result['status'] = 'completed';
+                    $result['content'] = markdownToHtml($reading[$field]);
+                    echo json_encode($result);
+                    exit;
                 }
 
-                $readingModel->updateReading($readingId, $type, $content);
+                // 如果没有结果，启动后台进程（如果没在跑的话）
+                // 为了简单起见，我们直接尝试启动进程，由 worker 内部判断是否需要重复执行
+                if ($type === 'marriage') {
+                    // 合婚逻辑较复杂，暂时保留同步或以后再优化
+                    $pYear = $_POST['pYear'] ?? '';
+                    $pMonth = $_POST['pMonth'] ?? '';
+                    $pDay = $_POST['pDay'] ?? '';
+                    $pHour = $_POST['pHour'] ?? 0;
+                    $pMinute = $_POST['pMinute'] ?? 0;
+                    $pGender = $_POST['pGender'] ?? '';
+                    $pProvince = $_POST['pProvince'] ?? '';
+                    $pCity = $_POST['pCity'] ?? '';
 
-                $result['success'] = true;
-                $result['content'] = markdownToHtml($content);
+                    if (!$pYear || !$pMonth || !$pDay || !$pGender) {
+                        $result['need_partner_info'] = true;
+                        echo json_encode($result);
+                        exit;
+                    }
+
+                    $calculator = new PanCalculator();
+                    $partnerPan = $calculator->calculate($pYear, $pMonth, $pDay, $pHour, $pMinute, $pGender, [
+                        'province' => $pProvince,
+                        'city' => $pCity
+                    ]);
+                    $panText = $calculator->formatForGemini($reading['pan_data']);
+                    $partnerPanText = $calculator->formatForGemini($partnerPan);
+                    $gemini = new GeminiClient();
+
+                    if ($panData['gender'] === 'male') {
+                        $content = $gemini->generateMarriageReading($panText, $partnerPanText);
+                    } else {
+                        $content = $gemini->generateMarriageReading($partnerPanText, $panText);
+                    }
+                    $readingModel->updateReading($readingId, $type, $content);
+                    $result['success'] = true;
+                    $result['status'] = 'completed';
+                    $result['content'] = markdownToHtml($content);
+                } else {
+                    // 事业、财运、健康走后台异步
+                    $phpBin = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false) ? 'php' : PHP_BINARY;
+                    $workerScript = __DIR__ . '/../scripts/generate_worker.php';
+                    $cmd = sprintf('%s %s %d %s &', escapeshellarg($phpBin), escapeshellarg($workerScript), $readingId, escapeshellarg($type));
+                    exec($cmd);
+
+                    $result['success'] = true;
+                    $result['status'] = 'processing';
+                    $result['message'] = '正在为您拨通天机...';
+                }
                 break;
 
             case 'purchase':
@@ -263,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // 微信支付
                 if ($payMethod === 'wechat' && WECHAT_APPID && WECHAT_MCH_ID) {
                     require_once __DIR__ . '/../app/utils/Payment.php';
-                    $orderNo = 'WX' . date('YmdHis') . rand(1000, 9999);
+                    $orderNo = 'WX' . date('YmdHis') . random_int(100000, 999999);
 
                     // 记录订单
                     $orderModel = new Order();
@@ -291,7 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // 支付宝支付
                 elseif ($payMethod === 'alipay' && ALIPAY_APPID && ALIPAY_PRIVATE_KEY) {
                     require_once __DIR__ . '/../app/utils/Alipay.php';
-                    $orderNo = 'ALI' . date('YmdHis') . rand(1000, 9999);
+                    $orderNo = 'ALI' . date('YmdHis') . random_int(100000, 999999);
 
                     // 记录订单
                     $orderModel = new Order();
@@ -421,7 +423,7 @@ function isWechat()
                         <div class="option-icon">💼</div>
                         <div class="option-title">事业分析</div>
                         <div class="option-desc">事业发展方向、适合职业、事业高峰期</div>
-                        <div class="option-price">¥10</div>
+                        <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
                         <button class="btn-buy" <?= in_array('career', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
                             <?= in_array('career', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
                         </button>
@@ -434,7 +436,7 @@ function isWechat()
                         <div class="option-icon">💑</div>
                         <div class="option-title">合婚分析</div>
                         <div class="option-desc">婚姻缘分、相处模式、子女缘分</div>
-                        <div class="option-price">¥10</div>
+                        <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
                         <button class="btn-buy" <?= in_array('marriage', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
                             <?= in_array('marriage', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
                         </button>
@@ -447,7 +449,7 @@ function isWechat()
                         <div class="option-icon">💰</div>
                         <div class="option-title">财运分析</div>
                         <div class="option-desc">财运格局、理财建议、赚钱方向</div>
-                        <div class="option-price">¥10</div>
+                        <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
                         <button class="btn-buy" <?= in_array('wealth', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
                             <?= in_array('wealth', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
                         </button>
@@ -460,7 +462,7 @@ function isWechat()
                         <div class="option-icon">🏥</div>
                         <div class="option-title">健康分析</div>
                         <div class="option-desc">先天体质、易患疾病、养生建议</div>
-                        <div class="option-price">¥10</div>
+                        <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
                         <button class="btn-buy" <?= in_array('health', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
                             <?= in_array('health', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
                         </button>
@@ -472,7 +474,7 @@ function isWechat()
 
                 <div class="bulk-purchase">
                     <button class="btn-bundle" data-package="bundle">
-                        打包购买全部四项 ¥30
+                        打包购买全部四项 ¥<?= PAYMENT_BUNDLE_PRICE ?>
                     </button>
                     <button class="btn-monthly" data-package="monthly">
                         开通月卡会员 ¥666（无限次）
@@ -733,7 +735,9 @@ function isWechat()
                 const resultContent = resultSection.querySelector('.reading-result-content');
 
                 resultSection.style.display = 'block';
-                resultContent.innerHTML = '<p>🔮 正在为您拨通天机，请稍候...</p>';
+                if (!extraParams) {
+                    resultContent.innerHTML = '<p>🔮 正在为您拨通天机，请稍候...</p>';
+                }
 
                 let body = 'action=get_reading&type=' + type;
                 if (extraParams) {
@@ -748,17 +752,30 @@ function isWechat()
                     .then(r => r.json())
                     .then(data => {
                         if (data.success) {
-                            resultContent.innerHTML = data.content.replace(/\n/g, '<br>');
-                            resultSection.scrollIntoView({ behavior: 'smooth' });
+                            if (data.status === 'processing') {
+                                // 进入轮询模式：每 5 秒检查一次
+                                setTimeout(() => loadReading(type, null), 5000);
+                            } else {
+                                resultContent.innerHTML = data.content;
+                                resultSection.scrollIntoView({ behavior: 'smooth' });
+                            }
                         } else if (data.need_purchase) {
                             alert('请先购买此项服务');
                             resultSection.style.display = 'none';
+                        } else if (data.need_partner_info) {
+                            document.getElementById('partnerModal').style.display = 'flex';
+                            resultSection.style.display = 'none';
                         } else {
-                            resultContent.innerHTML = '<p class="error">' + data.message + '</p>';
+                            const errP = document.createElement('p');
+                            errP.className = 'error';
+                            errP.textContent = data.message || '未知错误';
+                            resultContent.innerHTML = '';
+                            resultContent.appendChild(errP);
                         }
                     })
                     .catch(err => {
-                        resultContent.innerHTML = '<p class="error">网络请求失败，请重试</p>';
+                        console.error(err);
+                        resultContent.innerHTML = '<p class="error">网络请求失败，请稍后重试</p>';
                     });
             }
         });

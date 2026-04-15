@@ -162,12 +162,7 @@ class Payment
      */
     private function generateNonceStr($length = 32)
     {
-        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        $str = '';
-        for ($i = 0; $i < $length; $i++) {
-            $str .= $chars[mt_rand(0, strlen($chars) - 1)];
-        }
-        return $str;
+        return bin2hex(random_bytes($length / 2));
     }
 
     /**
@@ -194,8 +189,8 @@ class Payment
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         // 客户端证书认证

@@ -19,6 +19,10 @@ class Database
             }
             $this->pdo = new PDO('sqlite:' . $dbPath);
             $this->pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+            // 解决 SQLite 并发锁定问题：等待 5 秒
+            $this->pdo->exec('PRAGMA busy_timeout = 5000');
+            // WAL 模式允许并发读写，减少 database is locked 错误
+            $this->pdo->exec('PRAGMA journal_mode = WAL');
             // 初始化表
             $this->initTables();
         } else {
@@ -43,6 +47,17 @@ class Database
             self::$instance = new self();
         }
         return self::$instance;
+    }
+
+    /**
+     * 明确关闭数据库连接
+     */
+    public static function close()
+    {
+        if (self::$instance !== null) {
+            self::$instance->pdo = null;
+            self::$instance = null;
+        }
     }
 
     public function getPdo()
@@ -118,6 +133,13 @@ class Database
         ";
 
         $this->pdo->exec($sql);
+
+        // 迁移：为 orders 表添加 transaction_id 列（如果尚不存在）
+        try {
+            $this->pdo->exec("ALTER TABLE orders ADD COLUMN transaction_id VARCHAR(128)");
+        } catch (PDOException $e) {
+            // 列已存在，忽略错误
+        }
     }
 
     // 查找单条记录

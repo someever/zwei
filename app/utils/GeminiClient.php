@@ -137,23 +137,37 @@ ALGO;
             'Accept: text/event-stream',
             'Authorization: Bearer ' . $this->apiKey
         ]);
-        curl_setopt($ch, CURLOPT_TIMEOUT, 300);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 600);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
-        error_log("GeminiClient: Sending HTTP POST to " . $url . " using model " . $this->model);
+        error_log("GeminiClient: Calling API [model: {$this->model}]...");
+        $startTime = microtime(true);
 
         // Nginx 防止超时：在耗时开始前打出一大段空格强制刷新 Response Header
-        echo str_repeat(" ", 4096);
-        @flush();
-        @ob_flush();
+        // 修正：只有在非命令行模式且非 JSON 返回时才输出空格，避免损坏 AJAX 返回的 JSON 格式
+        $isJson = false;
+        foreach (headers_list() as $header) {
+            if (stripos($header, 'Content-Type: application/json') !== false) {
+                $isJson = true;
+                break;
+            }
+        }
+
+        if (PHP_SAPI !== 'cli' && !$isJson) {
+            echo str_repeat(" ", 4096);
+            @flush();
+            @ob_flush();
+        }
 
         $responseContent = '';
         $buffer = '';
-        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($curl, $data) use (&$responseContent, &$buffer) {
-            echo " "; // 大模型生成流期间不断输出空格"续命"
-            @flush();
-            @ob_flush();
+        curl_setopt($ch, CURLOPT_WRITEFUNCTION, function ($curl, $data) use (&$responseContent, &$buffer, $isJson) {
+            if (PHP_SAPI !== 'cli' && !$isJson) {
+                echo " "; // 大模型生成流期间不断输出空格"续命"
+                @flush();
+                @ob_flush();
+            }
 
             $buffer .= $data;
             while (($pos = strpos($buffer, "\n")) !== false) {
@@ -175,25 +189,27 @@ ALGO;
 
         curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        
-        error_log("GeminiClient: cURL exec finished. HTTP Code: {$httpCode}");
+        $duration = round(microtime(true) - $startTime, 2);
 
         if (curl_errno($ch)) {
-            error_log('AI API cURL error: ' . curl_error($ch));
-            return $this->demoGenerate($prompt, $systemPrompt);
+            $error = curl_error($ch);
+            error_log("GeminiClient: API cURL error in {$duration}s - {$error}");
+            throw new Exception('AI 服务暂时不可用，请稍后重试');
         }
 
         if ($httpCode !== 200) {
-            error_log('AI API HTTP error: ' . $httpCode);
-            return $this->demoGenerate($prompt, $systemPrompt);
+            error_log("GeminiClient: API failed in {$duration}s [HTTP {$httpCode}]");
+            throw new Exception('AI 服务返回错误（HTTP ' . $httpCode . '），请稍后重试');
         }
+
+        error_log("GeminiClient: API success in {$duration}s [HTTP 200]");
 
         if (!empty($responseContent)) {
             return $responseContent;
         }
 
-        error_log('AI API empty response');
-        return $this->demoGenerate($prompt, $systemPrompt);
+        error_log("GeminiClient: API empty response in {$duration}s");
+        throw new Exception('AI 服务返回空结果，请稍后重试');
     }
 
     /**

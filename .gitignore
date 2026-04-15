@@ -4,6 +4,8 @@
 
 # Database
 database/*.db
+database/*.db-shm
+database/*.db-wal
 
 # macOS
 .DS_Store
@@ -25,6 +27,7 @@ cert/*.pem
 # PHP
 vendor/
 composer.lock
+check_db.php
 
 # Mock Data
 public/js/data/panDemo*.json

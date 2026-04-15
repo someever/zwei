@@ -12,7 +12,7 @@ require_once __DIR__ . '/../../app/models/Reading.php';
 
 header('Content-Type: application/json; charset=utf-8');
 // 允许长时间运行
-set_time_limit(300);
+set_time_limit(660);
 
 session_start();
 
@@ -32,9 +32,7 @@ try {
     if (!$reading) {
         throw new Exception('解读记录不存在');
     }
-    
-    // 此时后台由 generate_worker.php 负责生成，status.php 仅负责返回查询状态，不阻断、不重复发起请求
-    
+
     $result['success'] = true;
     $result['reading_id'] = $readingId;
     $result['status'] = $reading['status'];

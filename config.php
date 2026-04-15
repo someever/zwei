@@ -4,11 +4,19 @@
  */
 
 // 增加脚本执行时间限制，防止 AI 调用超时
-set_time_limit(300);
+set_time_limit(660);
 
-// 关闭错误显示，防止警告破坏 JSON 响应（错误会记录在日志中）
+// 关闭报错页面输出防污染，开启全局错误收集
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
+ini_set('log_errors', 1);
+
+// 将所有业务日志（包含前台和跑在后台的 worker）按天集中记录到 logs/app-日期.log
+$logDir = __DIR__ . '/logs';
+if (!is_dir($logDir)) {
+    @mkdir($logDir, 0777, true);
+}
+ini_set('error_log', $logDir . '/app-' . date('Y-m-d') . '.log');
 
 // 加载 .env 文件
 $envFile = __DIR__ . '/.env';
@@ -44,7 +52,7 @@ define('APP_NAME', '紫微命理');
 define('APP_URL', getenv('APP_URL') ?: 'http://localhost:8080');
 
 // 支付配置
-define('PAYMENT_SINGLE_PRICE', 10);
+define('PAYMENT_SINGLE_PRICE', 0.01);
 define('PAYMENT_BUNDLE_PRICE', 30);
 define('PAYMENT_MONTHLY_PRICE', 666);
 define('PAYMENT_MONTHLY_DAYS', 30);

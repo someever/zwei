@@ -119,17 +119,28 @@ class PanCalculator
                 curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($params));
                 curl_setopt($ch, CURLOPT_TIMEOUT, 10);
                 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 
+                $startTime = microtime(true);
+                error_log("PanCalculator: Calling YuanFenJu API...");
+                
                 $json = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $duration = round(microtime(true) - $startTime, 2);
+                
+                if (curl_errno($ch)) {
+                    error_log("PanCalculator: YuanFenJu API error - " . curl_error($ch));
+                } else {
+                    error_log("PanCalculator: YuanFenJu API finished in {$duration}s [HTTP {$httpCode}]");
+                }
             }
 
             if (!$json)
                 return false;
 
             $res = json_decode($json, true);
-            //error_log("YuanFenJu API Raw Response: " . $json);
             if (!isset($res['errcode']) || $res['errcode'] !== 0) {
-                error_log("YuanFenJu API Error: " . ($res['errmsg'] ?? 'Unknown error'));
+                error_log("PanCalculator: YuanFenJu API returned business error: " . ($res['errmsg'] ?? 'Unknown'));
                 return false;
             }
 

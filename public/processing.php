@@ -69,7 +69,7 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                 <div class="reading-info">
                     <p><strong>👤 姓名：</strong><?= htmlspecialchars($reading['name']) ?></p>
                     <p><strong>📊 状态：</strong><span class="status-badge processing" id="status-badge">解读中</span></p>
-                    <p><strong>🕐 提交时间：</strong><?= $reading['created_at'] ?></p>
+                    <p><strong>🕐 提交时间：</strong><?= date('Y-m-d H:i:s', strtotime($reading['created_at'] . ' UTC')) ?></p>
                 </div>
                 
                 <div class="pan-preview">
@@ -93,7 +93,7 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                                     <span class="reading-status <?= $r['status'] ?>">
                                         <?= $r['status'] === 'completed' ? '✅ 已完成' : ($r['status'] === 'processing' ? '⏳ 处理中' : '⏸️ 等待中') ?>
                                     </span>
-                                    <span class="reading-time"><?= date('m-d H:i', strtotime($r['created_at'])) ?></span>
+                                    <span class="reading-time"><?= date('m-d H:i', strtotime($r['created_at'] . ' UTC')) ?></span>
                                 </li>
                             <?php endforeach; ?>
                         </ul>
@@ -136,6 +136,8 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                 } else if (data.status === 'failed') {
                     updateUI('failed');
                     isGenerating = false;
+                    // 生成失败 3 秒后自动跳转回首页，不卡在中间页
+                    setTimeout(() => { window.location.href = 'index.php?new=1'; }, 3000);
                 } else {
                     isGenerating = false;
                     // 自动轮询：每10秒检查一次状态，降低服务器压力

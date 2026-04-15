@@ -46,26 +46,21 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(r => r.json())
         .then(data => {
             loadingMsg.remove();
-            
+
             if (data.success) {
                 // 解析成功，填充表单并切换
                 fillForm(data.data);
                 addMessage('已识别到你的信息：', 'bot');
                 addMessage(formatParsedData(data.data), 'bot');
-                
-                setTimeout(() => {
-                    // 切换到表单模式
-                    modeBtns[0].click();
-                    // 自动提交
-                    document.getElementById('birthForm').dispatchEvent(new Event('submit'));
-                }, 1500);
+                // 提示用户确认后手动提交
+                addMessage('请核对信息无误后，点击下方「开始算命」按钮继续', 'bot');
             } else {
                 addMessage(data.message || '抱歉，我没有理解你的意思，请换个方式描述试试～', 'bot');
             }
         })
         .catch(err => {
             loadingMsg.remove();
-            addMessage('解析失败，请使用表单模式输入详细信息', 'bot');
+            addMessage('网络异常，请使用表单模式输入详细信息', 'bot');
         });
     }
 

@@ -35,7 +35,7 @@ try {
     $amount = $prices[$type] ?? PAYMENT_SINGLE_PRICE;
     
     // 生成订单号
-    $orderNo = 'ZWEI' . date('YmdHis') . rand(1000, 9999);
+    $orderNo = 'ZWEI' . date('YmdHis') . random_int(100000, 999999);
     
     // 订单描述
     $descriptions = [

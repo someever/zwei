@@ -19,7 +19,7 @@ if ($userId && !$forceNew) {
     
     if ($latestReading && in_array($latestReading['status'], ['pending', 'processing'])) {
         // 超过10分钟的 processing 记录视为超时，自动标记为 failed
-        $createdAt = strtotime($latestReading['created_at']);
+        $createdAt = strtotime($latestReading['created_at'] . ' UTC');
         if (time() - $createdAt > 600) {
             $readingModel->updateStatus($latestReading['id'], 'failed');
         } else {

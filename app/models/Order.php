@@ -14,7 +14,7 @@ class Order {
      * 创建订单
      */
     public function create($data) {
-        $orderNo = 'Z' . date('YmdHis') . rand(1000, 9999);
+        $orderNo = 'Z' . date('YmdHis') . random_int(100000, 999999);
         
         $typeMap = ['single' => '单次解读', 'bundle' => '四次打包', 'monthly' => '月卡'];
 
@@ -45,48 +45,65 @@ class Order {
     }
 
     /**
-     * 处理支付成功
+     * 处理支付成功（幂等：重复回调返回 true）
      */
     public function processPayment($orderNo, $transactionId = '') {
-        $order = $this->getByOrderNo($orderNo);
-        if (!$order || $order['status'] !== 'pending') {
-            return false;
-        }
+        $this->db->beginTransaction();
+        try {
+            $order = $this->getByOrderNo($orderNo);
+            if (!$order) {
+                $this->db->rollBack();
+                return false;
+            }
 
-        $userModel = new User();
-        
-        // 更新订单状态
-        $updateData = ['status' => 'paid', 'paid_at' => date('Y-m-d H:i:s')];
-        if ($transactionId) {
-            $updateData['transaction_id'] = $transactionId;
-        }
-        $this->db->update('orders', $updateData, 'order_no = :orderNo', ['orderNo' => $orderNo]);
+            // 幂等：已支付的订单重复回调视为成功
+            if ($order['status'] === 'paid') {
+                $this->db->rollBack();
+                return true;
+            }
 
-        // 根据订单类型处理
-        switch ($order['type']) {
-            case 'single':
-                // 单次：增加余额（用于解锁解读）
-                // 余额在购买时已经通过 purchased_types 解锁，这里只记录
-                break;
-            case 'bundle':
-                // 打包：增加余额
-                break;
-            case 'monthly':
-                // 月卡：开通月卡
-                $userModel->activateMonthlyCard($order['user_id'], 30);
-                break;
-        }
+            // 非 pending 状态（如 cancelled）不可支付
+            if ($order['status'] !== 'pending') {
+                $this->db->rollBack();
+                return false;
+            }
 
-        // 更新用户消费总额
-        $user = $userModel->getById($order['user_id']);
-        if ($user) {
-            $this->db->update('users', 
-                ['total_spend' => ($user['total_spend'] ?? 0) + $order['amount']], 
-                'id = :id', 
-                ['id' => $order['user_id']]
-            );
-        }
+            $userModel = new User();
 
-        return true;
+            // 更新订单状态
+            $updateData = ['status' => 'paid', 'paid_at' => date('Y-m-d H:i:s')];
+            if ($transactionId) {
+                $updateData['transaction_id'] = $transactionId;
+            }
+            $this->db->update('orders', $updateData, 'order_no = :orderNo', ['orderNo' => $orderNo]);
+
+            // 根据订单类型处理
+            switch ($order['type']) {
+                case 'single':
+                    break;
+                case 'bundle':
+                    break;
+                case 'monthly':
+                    $userModel->activateMonthlyCard($order['user_id'], 30);
+                    break;
+            }
+
+            // 更新用户消费总额
+            $user = $userModel->getById($order['user_id']);
+            if ($user) {
+                $this->db->update('users',
+                    ['total_spend' => ($user['total_spend'] ?? 0) + $order['amount']],
+                    'id = :id',
+                    ['id' => $order['user_id']]
+                );
+            }
+
+            $this->db->commit();
+            return true;
+        } catch (Exception $e) {
+            $this->db->rollBack();
+            error_log("Order::processPayment error for {$orderNo}: " . $e->getMessage());
+            throw $e;
+        }
     }
 }

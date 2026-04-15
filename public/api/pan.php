@@ -41,7 +41,7 @@ try {
     
     if ($latestReading && in_array($latestReading['status'], ['pending', 'processing'])) {
         // 超过10分钟的记录视为超时，自动标记为 failed，允许重新提交
-        $createdAt = strtotime($latestReading['created_at']);
+        $createdAt = strtotime($latestReading['created_at'] . ' UTC');
         if (time() - $createdAt > 600) {
             $readingModel->updateStatus($latestReading['id'], 'failed');
         } else {
@@ -109,13 +109,17 @@ echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
 // 提交成功后，在后台启动独立进程生成 AI 解读
 if (!empty($result['success']) && !empty($readingId)) {
+    // 明确保存并关闭 Session，避免锁定
+    session_write_close();
+    
+    // 明确关闭数据库连接，确保所有事务已提交且释放文件锁
+    Database::close();
+
     $workerScript = __DIR__ . '/../../scripts/generate_worker.php';
     // 在 Web/FPM 环境下，PHP_BINARY 往往是 php-fpm 导致无法执行命令行。改用 'php'
     $phpBin = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false || strpos(PHP_SAPI, 'cgi') !== false) ? 'php' : PHP_BINARY;
-    $logFile = __DIR__ . '/../../server.log';
     
-    // 将标准输出和错误输出都重定向到 server.log 而不是 /dev/null
-    $cmd = sprintf('%s %s %d >> %s 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), $readingId, escapeshellarg($logFile));
-    error_log("pan.php: Triggering background worker for reading ID {$readingId}. Command: {$cmd}");
+    // nohup 保证请求结束后后台进程不被杀死，> /dev/null 不影响 error_log() 的输出
+    $cmd = sprintf('nohup %s %s %d > /dev/null 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), (int)$readingId);
     exec($cmd);
 }
