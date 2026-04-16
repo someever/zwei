@@ -45,62 +45,63 @@ try {
         if (time() - $createdAt > 600) {
             $readingModel->updateStatus($latestReading['id'], 'failed');
         } else {
-            // 返回现有解读 ID，让前端去 processing 页面等待
+            // 返回现有解读 ID，但依然尝试后台拉起 worker (因为 worker 脚本有文件锁，重复启动是安全的)
+            $readingId = $latestReading['id'];
             $result['success'] = true;
-            $result['reading_id'] = $latestReading['id'];
+            $result['reading_id'] = $readingId;
             $result['status'] = $latestReading['status'];
-            $result['message'] = '您有正在进行的解读';
-            echo json_encode($result, JSON_UNESCAPED_UNICODE);
-            exit;
+            $result['message'] = '您有正在进行的解读，正在恢复生成...';
+            // 继续向下走，去触发 worker 逻辑
         }
     }
 
-    // 排盘计算
-    $calculator = new PanCalculator();
-    $panData = $calculator->calculate(
-        $data['birthYear'],
-        $data['birthMonth'],
-        $data['birthDay'],
-        $data['birthHour'],
-        $data['birthMinute'],
-        $data['gender'],
-        [
-            'location' => $data['birthLocation'] ?? '',
-            'province' => $data['province'] ?? '',
-            'city' => $data['city'] ?? ''
-        ]
-    );
+    if (empty($readingId)) {
+        // 排盘计算
+        $calculator = new PanCalculator();
+        $panData = $calculator->calculate(
+            $data['birthYear'],
+            $data['birthMonth'],
+            $data['birthDay'],
+            $data['birthHour'],
+            $data['birthMinute'],
+            $data['gender'],
+            [
+                'location' => $data['birthLocation'] ?? '',
+                'province' => $data['province'] ?? '',
+                'city' => $data['city'] ?? ''
+            ]
+        );
 
-    // 保存算命记录（状态为 processing）
-    $readingId = $readingModel->create([
-        'user_id' => $user['id'],
-        'session_id' => session_id(),
-        'name' => $data['name'] ?? '',
-        'gender' => $data['gender'],
-        'birth_year' => $data['birthYear'],
-        'birth_month' => $data['birthMonth'],
-        'birth_day' => $data['birthDay'],
-        'birth_hour' => $data['birthHour'],
-        'birth_minute' => $data['birthMinute'],
-        'birth_location' => $data['birthLocation'] ?? '',
-        'lunar_date' => $panData['lunar_date']['year'] . '年' . $panData['lunar_date']['month'] . '月' . $panData['lunar_date']['day'] . '日',
-        'zhongshu' => $panData['zhongshu']['zhongshu'],
-        'shichen' => $panData['shichen'],
-        'pan_data' => $panData,
-        'overall_reading' => '',
-        'status' => 'processing'
-    ]);
+        // 保存算命记录（状态为 processing）
+        $readingId = $readingModel->create([
+            'user_id' => $user['id'],
+            'session_id' => session_id(),
+            'name' => $data['name'] ?? '',
+            'gender' => $data['gender'],
+            'birth_year' => $data['birthYear'],
+            'birth_month' => $data['birthMonth'],
+            'birth_day' => $data['birthDay'],
+            'birth_hour' => $data['birthHour'],
+            'birth_minute' => $data['birthMinute'],
+            'birth_location' => $data['birthLocation'] ?? '',
+            'lunar_date' => $panData['lunar_date']['year'] . '年' . $panData['lunar_date']['month'] . '月' . $panData['lunar_date']['day'] . '日',
+            'zhongshu' => $panData['zhongshu']['zhongshu'],
+            'shichen' => $panData['shichen'],
+            'pan_data' => $panData,
+            'overall_reading' => '',
+            'status' => 'processing'
+        ]);
 
-    // 保存到 session
-    $_SESSION['pan_data'] = $panData;
-    $_SESSION['reading_id'] = $readingId;
-    $_SESSION['purchased_types'] = [];
+        // 保存到 session
+        $_SESSION['pan_data'] = $panData;
+        $_SESSION['reading_id'] = $readingId;
+        $_SESSION['purchased_types'] = [];
 
-    $result['success'] = true;
-    $result['reading_id'] = $readingId;
-    $result['status'] = 'processing';
-    $result['message'] = '排盘完成，正在生成解读...';
-
+        $result['success'] = true;
+        $result['reading_id'] = $readingId;
+        $result['status'] = 'processing';
+        $result['message'] = '排盘完成，正在生成解读...';
+    }
 } catch (Exception $e) {
     $result['message'] = $e->getMessage();
 }
@@ -116,10 +117,25 @@ if (!empty($result['success']) && !empty($readingId)) {
     Database::close();
 
     $workerScript = __DIR__ . '/../../scripts/generate_worker.php';
-    // 在 Web/FPM 环境下，PHP_BINARY 往往是 php-fpm 导致无法执行命令行。改用 'php'
-    $phpBin = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false || strpos(PHP_SAPI, 'cgi') !== false) ? 'php' : PHP_BINARY;
+    
+    // 检查 exec 是否被禁用
+    $disabledFunctions = explode(',', ini_get('disable_functions'));
+    if (in_array('exec', array_map('trim', $disabledFunctions))) {
+        error_log("CRITICAL ERROR: 'exec' function is disabled in php.ini. Background worker cannot be started.");
+    }
+
+    // 使用在 config.php 中定义的 PHP_CLI_BIN
+    $phpBin = PHP_CLI_BIN;
     
     // nohup 保证请求结束后后台进程不被杀死，> /dev/null 不影响 error_log() 的输出
     $cmd = sprintf('nohup %s %s %d > /dev/null 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), (int)$readingId);
-    exec($cmd);
+    
+    error_log("Triggering worker: " . $cmd);
+    $output = [];
+    $returnVar = 0;
+    exec($cmd, $output, $returnVar);
+    
+    if ($returnVar !== 0) {
+        error_log("Worker execution failed with return code: " . $returnVar);
+    }
 }

@@ -14,9 +14,25 @@ ini_set('log_errors', 1);
 // 将所有业务日志（包含前台和跑在后台的 worker）按天集中记录到 logs/app-日期.log
 $logDir = __DIR__ . '/logs';
 if (!is_dir($logDir)) {
-    @mkdir($logDir, 0777, true);
+    if (!@mkdir($logDir, 0777, true)) {
+        // 如果创建失败，尝试记录到系统日志
+        $error = error_get_last();
+        error_log("CRITICAL: Failed to create log directory: $logDir. Error: " . ($error['message'] ?? 'Unknown error') . ". Please run: mkdir -p $logDir && chmod 777 $logDir");
+    }
 }
-ini_set('error_log', $logDir . '/app-' . date('Y-m-d') . '.log');
+
+$logFile = $logDir . '/app-' . date('Y-m-d') . '.log';
+if (is_dir($logDir) && is_writable($logDir)) {
+    ini_set('error_log', $logFile);
+    // 确保文件存在且可写
+    if (!file_exists($logFile)) {
+        @touch($logFile);
+        @chmod($logFile, 0666);
+    }
+} else {
+    //  fallback to default error log if logs dir is not writable
+    error_log("Log directory $logDir is not writable. Logging to system default.");
+}
 
 // 加载 .env 文件
 $envFile = __DIR__ . '/.env';
@@ -79,6 +95,14 @@ define('GEMINI_MODEL', $_ENV['GEMINI_MODEL'] ?? getenv('GEMINI_MODEL') ?: 'gemin
 
 // 缘分居 API 配置
 define('YUANFENJU_API_KEY', $_ENV['YUANFENJU_API_KEY'] ?? getenv('YUANFENJU_API_KEY') ?: '');
+
+// PHP CLI 路径（用于后台 worker，可手动指定）
+$phpCli = $_ENV['PHP_CLI_BIN'] ?? getenv('PHP_CLI_BIN') ?: '';
+if (!$phpCli) {
+    // 自动探测
+    $phpCli = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false || strpos(PHP_SAPI, 'cgi') !== false) ? 'php' : PHP_BINARY;
+}
+define('PHP_CLI_BIN', $phpCli);
 
 // 时区
 date_default_timezone_set('Asia/Shanghai');
