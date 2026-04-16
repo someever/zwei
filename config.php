@@ -98,9 +98,14 @@ define('YUANFENJU_API_KEY', $_ENV['YUANFENJU_API_KEY'] ?? getenv('YUANFENJU_API_
 
 // PHP CLI 路径（用于后台 worker，可手动指定）
 $phpCli = $_ENV['PHP_CLI_BIN'] ?? getenv('PHP_CLI_BIN') ?: '';
-if (!$phpCli) {
-    // 自动探测
-    $phpCli = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false || strpos(PHP_SAPI, 'cgi') !== false) ? 'php' : PHP_BINARY;
+if (!$phpCli || $phpCli === 'php') {
+    // 自动探测：先尝试 which php
+    $execPhp = @shell_exec('which php');
+    if ($execPhp) {
+        $phpCli = trim($execPhp);
+    } else {
+        $phpCli = (strpos(PHP_BINARY, 'fpm') !== false || strpos(PHP_SAPI, 'fpm') !== false || strpos(PHP_SAPI, 'cgi') !== false) ? 'php' : PHP_BINARY;
+    }
 }
 define('PHP_CLI_BIN', $phpCli);
 

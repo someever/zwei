@@ -126,9 +126,12 @@ if (!empty($result['success']) && !empty($readingId)) {
 
     // 使用在 config.php 中定义的 PHP_CLI_BIN
     $phpBin = PHP_CLI_BIN;
+    // 获取当前配置的错误日志路径，合并输出
+    $currentLog = ini_get('error_log') ?: (__DIR__ . '/../../logs/app-' . date('Y-m-d') . '.log');
     
-    // nohup 保证请求结束后后台进程不被杀死，> /dev/null 不影响 error_log() 的输出
-    $cmd = sprintf('nohup %s %s %d > /dev/null 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), (int)$readingId);
+    // nohup 保证请求结束后后台进程不被杀死
+    // 将标准输出和错误输出都追加到当前的 app 日志中，方便统一查看系统层面的启动错误
+    $cmd = sprintf('nohup %s %s %d >> %s 2>&1 &', escapeshellarg($phpBin), escapeshellarg($workerScript), (int)$readingId, escapeshellarg($currentLog));
     
     error_log("Triggering worker: " . $cmd);
     $output = [];
