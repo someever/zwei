@@ -9,6 +9,39 @@ require_once __DIR__ . '/../app/models/Reading.php';
 
 session_start();
 
+// 微信授权逻辑
+if (strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'MicroMessenger') !== false && WECHAT_APPID && WECHAT_APPSECRET) {
+    require_once __DIR__ . '/../app/utils/Wechat.php';
+    $wechat = new Wechat();
+    
+    if (isset($_GET['code'])) {
+        $openid = $wechat->getOpenidByCode($_GET['code']);
+        if ($openid) {
+            $userModel = new User();
+            $user = $userModel->findOrCreateByOpenid($openid);
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['openid'] = $openid;
+            $_SESSION['openid_verified'] = true;
+        }
+        // 移除 code 参数，避免污染 URL
+        $url = APP_URL . '/index.php' . (isset($_GET['new']) ? '?new=1' : '');
+        header("Location: " . $url);
+        exit;
+    } elseif (!isset($_SESSION['openid_verified'])) {
+        $redirectUrl = APP_URL . $_SERVER['REQUEST_URI'];
+        header("Location: " . $wechat->getAuthUrl($redirectUrl));
+        exit;
+    }
+}
+
+// 如果从外部（非微信）进入，且没有 userId，创建一个演示用户
+if (!isset($_SESSION['user_id'])) {
+    require_once __DIR__ . '/../app/models/User.php';
+    $userModel = new User();
+    $user = $userModel->createDemoUser();
+    $_SESSION['user_id'] = $user['id'];
+}
+
 // 如果带了 ?new=1，说明用户主动要回首页重新算
 $forceNew = isset($_GET['new']) && $_GET['new'] == '1';
 
@@ -54,12 +87,6 @@ if ($userId && !$forceNew) {
         </header>
 
         <main class="main">
-            <!-- 切换模式 -->
-            <div class="mode-switch">
-                <button class="mode-btn active" data-mode="form">✍️ 手工输入</button>
-                <button class="mode-btn" data-mode="chat">🤖 AI 解析</button>
-            </div>
-
             <!-- 手工输入模式 -->
             <form id="birthForm" class="form mode-form active">
                 <div class="form-group">
@@ -110,33 +137,15 @@ if ($userId && !$forceNew) {
                     <input type="hidden" id="citySelect" name="city" value="">
                 </div>
 
-                <button type="submit" class="btn-primary">开始算命</button>
+                <button type="submit" class="btn-primary">查看运势</button>
             </form>
-
-            <!-- 聊天模式 -->
-            <div id="chatMode" class="chat-container mode-form">
-                <div class="chat-messages" id="chatMessages">
-                    <div class="chat-message bot">
-                        <div class="chat-avatar">🔮</div>
-                        <div class="chat-content">
-                            <p>你好！我是知运星助手</p>
-                            <p>请告诉我你的出生信息，例如：</p>
-                            <p class="example">"我1995年8月15日下午3点半在北京出生，男"</p>
-                            <p>或者直接描述你的情况，我帮你解析～</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="chat-input-container">
-                    <input type="text" id="chatInput" placeholder="输入你的出生信息..." autocomplete="off">
-                    <button id="sendBtn" class="btn-send">发送</button>
-                </div>
-            </div>
         </main>
 
         <footer class="footer">
             <p>© 2026 知运星 · 紫微斗数传承</p>
             <script src="js/main.js"></script>
-            <script src="js/chat.js"></script>
+        </footer>
+    </div>
 </body>
 
 </html>

@@ -29,12 +29,13 @@ class Payment
      * @param float $amount 金额（元）
      * @param string $description 订单描述
      * @param string $tradeType 交易类型 (NATIVE, MWEB, JSAPI)
+     * @param string $openid 用户OpenID (JSAPI必填)
      * @return array
      */
-    public function createOrder($orderNo, $amount, $description, $tradeType = 'NATIVE')
+    public function createOrder($orderNo, $amount, $description, $tradeType = 'NATIVE', $openid = null)
     {
         $totalFee = intval($amount * 100); // 转换为分
-
+ 
         $params = [
             'appid' => $this->appid,
             'mch_id' => $this->mchId,
@@ -46,6 +47,18 @@ class Payment
             'notify_url' => $this->notifyUrl,
             'trade_type' => $tradeType
         ];
+ 
+        // JSAPI 需要 openid
+        if ($tradeType === 'JSAPI') {
+            if (!$openid) {
+                 // 尝试从session获取
+                 $openid = $_SESSION['openid'] ?? null;
+            }
+            if (!$openid) {
+                throw new Exception('JSAPI支付需要openid');
+            }
+            $params['openid'] = $openid;
+        }
 
         // H5支付需要 scene_info
         if ($tradeType === 'MWEB') {
@@ -57,11 +70,15 @@ class Payment
                 ]
             ]);
         }
-
+ 
         $params['sign'] = $this->generateSign($params);
-
+ 
         $xml = $this->arrayToXml($params);
         $response = $this->post('https://api.mch.weixin.qq.com/pay/unifiedorder', $xml);
+        
+        // 记录响应以便调试
+        error_log("WechatPay Response: " . $response);
+        
         $result = $this->xmlToArray($response);
 
         if ($result['return_code'] === 'SUCCESS' && $result['result_code'] === 'SUCCESS') {

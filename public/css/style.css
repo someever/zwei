@@ -1,4 +1,4 @@
-/* 紫微斗数算命系统 - 样式 */
+/* 紫微斗数排盘运势系统 - 样式 */
 
 :root {
     --primary-color: #8b5cf6;
@@ -489,41 +489,39 @@ body {
     background: var(--primary-dark);
 }
 
-/* Bulk Purchase */
-.bulk-purchase {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+/* Overview Paywall */
+.overview-paywall {
+    text-align: center;
+    padding: 32px 20px;
+    background: linear-gradient(135deg, #f3e8ff, #fef3c7);
+    border-radius: 12px;
+    border: 2px dashed var(--primary-color);
 }
 
-.btn-bundle,
-.btn-monthly {
-    padding: 14px;
-    border: 2px solid var(--primary-color);
-    border-radius: 10px;
+.paywall-hint {
+    color: var(--text-color);
     font-size: 1rem;
-    font-weight: 600;
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.btn-buy-overview {
+    display: inline-block;
+    padding: 14px 36px;
+    background: linear-gradient(135deg, var(--primary-color), var(--primary-dark));
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 15px rgba(139, 92, 246, 0.35);
 }
 
-.btn-bundle {
-    background: linear-gradient(135deg, var(--primary-color), #a78bfa);
-    color: white;
-}
-
-.btn-bundle:hover {
-    box-shadow: 0 6px 20px rgba(139, 92, 246, 0.3);
-}
-
-.btn-monthly {
-    background: linear-gradient(135deg, #f59e0b, #fbbf24);
-    color: white;
-    border-color: var(--secondary-color);
-}
-
-.btn-monthly:hover {
-    box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
+.btn-buy-overview:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(139, 92, 246, 0.45);
 }
 
 /* Reading Result (reuse reading-content styles) */

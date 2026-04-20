@@ -8,8 +8,7 @@ require_once __DIR__ . '/config.php';
 echo "=== Gemini API 连通性测试 ===\n";
 echo "API Key: " . (GEMINI_API_KEY ? substr(GEMINI_API_KEY, 0, 10) . '...' : '未配置') . "\n";
 echo "Model: " . GEMINI_MODEL . "\n";
-echo "Base URL: " . GEMINI_BASE_URL . "\n";
-echo "DEMO_MODE: " . (DEMO_MODE ? 'true' : 'false') . "\n\n";
+echo "Base URL: " . GEMINI_BASE_URL . "\n\n";
 
 $url = GEMINI_BASE_URL . '/models/' . GEMINI_MODEL . ':generateContent?key=' . GEMINI_API_KEY;
 

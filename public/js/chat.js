@@ -53,7 +53,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 addMessage('已识别到你的信息：', 'bot');
                 addMessage(formatParsedData(data.data), 'bot');
                 // 提示用户确认后手动提交
-                addMessage('请核对信息无误后，点击下方「开始算命」按钮继续', 'bot');
+                addMessage('请核对信息无误后，点击下方「查看运势」按钮继续', 'bot');
             } else {
                 addMessage(data.message || '抱歉，我没有理解你的意思，请换个方式描述试试～', 'bot');
             }
@@ -121,7 +121,7 @@ document.addEventListener('DOMContentLoaded', function() {
             text += `出生时间：${data.birthHour}时${data.birthMinute || 0}分\n`;
         }
         if (data.birthLocation) text += `出生地：${data.birthLocation}\n`;
-        text += '\n正在跳转到算命页面...';
+        text += '\n正在跳转到运势页面...';
         return text;
     }
 

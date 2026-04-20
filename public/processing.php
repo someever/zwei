@@ -62,7 +62,7 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                 <div class="processing-icon" id="processing-icon">⏳</div>
                 <h2 id="status-title">正在为您拨通天机</h2>
                 <p class="processing-desc" id="status-desc">
-                    您的命盘已排好，AI 正在为您生成深度解读。<br>
+                    您的命盘已排好，正在为您生成深度解读。<br>
                     通常需要 1-3 分钟，请耐心等待...
                 </p>
                 

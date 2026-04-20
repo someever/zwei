@@ -68,13 +68,16 @@ define('APP_NAME', '紫微命理');
 define('APP_URL', getenv('APP_URL') ?: 'http://localhost:8080');
 
 // 支付配置
-define('PAYMENT_SINGLE_PRICE', 0.01);
-define('PAYMENT_BUNDLE_PRICE', 30);
-define('PAYMENT_MONTHLY_PRICE', 666);
+define('PAYMENT_OVERVIEW_PRICE', 1);    // 命格解析（整体解读）
+define('PAYMENT_SINGLE_PRICE', 5);      // 单次深入解读（事业/合婚/财运/健康）
+define('PAYMENT_BUNDLE_PRICE', 30);     // 保留常量，暂不对外露出
+define('PAYMENT_MONTHLY_PRICE', 666);   // 保留常量，暂不对外露出
 define('PAYMENT_MONTHLY_DAYS', 30);
+define('PAYMENT_BYPASS', strtolower($_ENV['PAYMENT_BYPASS'] ?? getenv('PAYMENT_BYPASS') ?: 'false') === 'true');
 
 // 微信支付配置 - 从 .env 读取
 define('WECHAT_APPID', $_ENV['WECHAT_APPID'] ?? getenv('WECHAT_APPID') ?: '');
+define('WECHAT_APPSECRET', $_ENV['WECHAT_APPSECRET'] ?? getenv('WECHAT_APPSECRET') ?: '');
 define('WECHAT_MCH_ID', $_ENV['WECHAT_MCH_ID'] ?? getenv('WECHAT_MCH_ID') ?: '');
 define('WECHAT_API_KEY', $_ENV['WECHAT_API_KEY'] ?? getenv('WECHAT_API_KEY') ?: '');
 define('WECHAT_NOTIFY_URL', $_ENV['WECHAT_NOTIFY_URL'] ?? getenv('WECHAT_NOTIFY_URL') ?: '');
@@ -87,6 +90,7 @@ define('ALIPAY_PRIVATE_KEY', $_ENV['ALIPAY_PRIVATE_KEY'] ?? getenv('ALIPAY_PRIVA
 define('ALIPAY_PUBLIC_KEY', $_ENV['ALIPAY_PUBLIC_KEY'] ?? getenv('ALIPAY_PUBLIC_KEY') ?: '');
 define('ALIPAY_NOTIFY_URL', $_ENV['ALIPAY_NOTIFY_URL'] ?? getenv('ALIPAY_NOTIFY_URL') ?: '');
 define('ALIPAY_SANDBOX', strtolower($_ENV['ALIPAY_SANDBOX'] ?? getenv('ALIPAY_SANDBOX') ?: 'false') === 'true');
+define('ALIPAY_RETURN_URL', $_ENV['ALIPAY_RETURN_URL'] ?? getenv('ALIPAY_RETURN_URL') ?: (APP_URL . '/result.php'));
 
 // Gemini配置
 define('GEMINI_API_KEY', $_ENV['GEMINI_API_KEY'] ?? getenv('GEMINI_API_KEY') ?: '');
@@ -111,6 +115,3 @@ define('PHP_CLI_BIN', $phpCli);
 
 // 时区
 date_default_timezone_set('Asia/Shanghai');
-
-// 演示模式 - 从 .env 读取
-define('DEMO_MODE', strtolower($_ENV['DEMO_MODE'] ?? getenv('DEMO_MODE') ?: 'false') === 'true');

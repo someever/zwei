@@ -123,11 +123,11 @@ class PanCalculator
 
                 $startTime = microtime(true);
                 error_log("PanCalculator: Calling YuanFenJu API...");
-                
+
                 $json = curl_exec($ch);
                 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
                 $duration = round(microtime(true) - $startTime, 2);
-                
+
                 if (curl_errno($ch)) {
                     error_log("PanCalculator: YuanFenJu API error - " . curl_error($ch));
                 } else {

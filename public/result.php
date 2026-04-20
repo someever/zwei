@@ -128,20 +128,51 @@ if (isset($_SESSION['user_id'])) {
     $hasMonthlyCard = $userModel->hasMonthlyCard($user);
 }
 
-// 从数据库同步已购买状态（解决微信支付回调后 session 未更新的问题）
-if (isset($_SESSION['user_id'])) {
-    $orderModel = new Order();
+// ─── 处理支付宝同步回跳 ───────────────────────────────────────────────────────
+// 支付宝跳回时会在 URL 带上 out_trade_no / trade_status / sign 等参数
+// 在 notify_url 到达前先用 return 参数直接确认支付，避免页面还显示「未购买」
+if (
+    isset($_GET['out_trade_no'], $_GET['trade_status']) &&
+    $_GET['trade_status'] === 'TRADE_SUCCESS'
+) {
+    require_once __DIR__ . '/../app/utils/Alipay.php';
+    $alipay = new Alipay();
+    $returnParams = $_GET;
+    if ($alipay->verifyNotify($returnParams)) {
+        $orderNo = $returnParams['out_trade_no'];
+        $tradeNo = $returnParams['trade_no'] ?? '';
+        $orderModel = new Order();
+        $order = $orderModel->getByOrderNo($orderNo);
+        // 只处理 pending 状态，已 paid 的幂等跳过
+        if ($order && $order['status'] === 'pending') {
+            try {
+                $orderModel->processPayment($orderNo, $tradeNo);
+                error_log("Alipay return_url processed order {$orderNo}");
+            } catch (Exception $e) {
+                error_log("Alipay return_url processPayment error: " . $e->getMessage());
+            }
+        }
+    } else {
+        error_log("Alipay return_url sign verify failed: " . json_encode($_GET));
+    }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 从数据库同步已购买状态（解决支付宝/微信支付回调后 session 未更新的问题）
+$orderModel = $orderModel ?? new Order();
+if (isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
     $paidOrders = $orderModel->getUserOrders($_SESSION['user_id']);
     $dbPurchasedTypes = [];
     foreach ($paidOrders as $order) {
         if ($order['status'] !== 'paid')
             continue;
-        if ($order['type'] === 'bundle') {
-            $dbPurchasedTypes = ['career', 'marriage', 'wealth', 'health'];
-            break;
+        if ($order['type'] === 'overview') {
+            $dbPurchasedTypes[] = 'overview';
+        } elseif ($order['type'] === 'bundle') {
+            // 历史订单兼容：bundle 解锁全部深入解读
+            $dbPurchasedTypes = array_unique(array_merge($dbPurchasedTypes, ['career', 'marriage', 'wealth', 'health']));
         } elseif ($order['type'] === 'monthly') {
             $hasMonthlyCard = true;
-            break;
         } elseif ($order['type'] === 'single' && !empty($order['description'])) {
             // description 格式: "紫微斗数单次解读|career"
             $parts = explode('|', $order['description']);
@@ -154,7 +185,30 @@ if (isset($_SESSION['user_id'])) {
         $purchasedTypes = array_unique(array_merge($purchasedTypes, $dbPurchasedTypes));
         $_SESSION['purchased_types'] = $purchasedTypes;
     }
+} elseif (isset($_GET['out_trade_no'])) {
+    // 匿名用户：通过回跳的 order_no 直接查订单并识别购买类型
+    $orderModel = new Order();
+    $order = $orderModel->getByOrderNo($_GET['out_trade_no']);
+    if ($order && $order['status'] === 'paid') {
+        if ($order['type'] === 'overview') {
+            $purchasedTypes[] = 'overview';
+            $purchasedTypes = array_unique($purchasedTypes);
+        } elseif ($order['type'] === 'bundle') {
+            $purchasedTypes = array_unique(array_merge($purchasedTypes, ['career', 'marriage', 'wealth', 'health']));
+        } elseif ($order['type'] === 'monthly') {
+            $hasMonthlyCard = true;
+        } elseif ($order['type'] === 'single' && !empty($order['description'])) {
+            $parts = explode('|', $order['description']);
+            if (isset($parts[1]) && in_array($parts[1], ['career', 'marriage', 'wealth', 'health'])) {
+                $purchasedTypes[] = $parts[1];
+                $purchasedTypes = array_unique($purchasedTypes);
+            }
+        }
+        $_SESSION['purchased_types'] = $purchasedTypes;
+    }
 }
+
+$hasOverviewAccess = in_array('overview', $purchasedTypes);
 
 // 处理AJAX请求
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -250,9 +304,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 // 确定支付金额和类型
                 $typeMap = [
-                    'single' => ['amount' => PAYMENT_SINGLE_PRICE, 'desc' => '紫微斗数单次解读'],
-                    'bundle' => ['amount' => PAYMENT_BUNDLE_PRICE, 'desc' => '紫微斗数四次打包'],
-                    'monthly' => ['amount' => PAYMENT_MONTHLY_PRICE, 'desc' => '紫微斗数月卡会员'],
+                    'overview' => ['amount' => PAYMENT_OVERVIEW_PRICE, 'desc' => '命盘整体解读'],
+                    'single'   => ['amount' => PAYMENT_SINGLE_PRICE,   'desc' => '紫微斗数单次深入解读'],
                 ];
 
                 if (!isset($typeMap[$package])) {
@@ -261,6 +314,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 $payInfo = $typeMap[$package];
                 $isMobile = isMobile();
+
+                // 支付绕过模式（生产自测用）
+                if (PAYMENT_BYPASS) {
+                    if ($package === 'overview') {
+                        $purchased = $_SESSION['purchased_types'] ?? [];
+                        $purchased[] = 'overview';
+                        $_SESSION['purchased_types'] = array_unique($purchased);
+                    } elseif ($package === 'single' && $readingType) {
+                        $purchased = $_SESSION['purchased_types'] ?? [];
+                        $purchased[] = $readingType;
+                        $_SESSION['purchased_types'] = array_unique($purchased);
+                    }
+
+                    $result['success'] = true;
+                    $result['payment'] = false;
+                    $result['message'] = '购买成功（测试模式）';
+                    break;
+                }
 
                 // 微信支付
                 if ($payMethod === 'wechat' && WECHAT_APPID && WECHAT_MCH_ID) {
@@ -279,16 +350,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]);
 
                     $payment = new Payment();
-                    // 手机端且非微信内置浏览器使用 MWEB
-                    $tradeType = ($isMobile && !isWechat()) ? 'MWEB' : 'NATIVE';
+                    // 逻辑：
+                    // 1. 如果在微信内置浏览器 -> JSAPI
+                    // 2. 如果是普通手机浏览器 -> MWEB (H5支付)
+                    // 3. 其他 -> NATIVE (扫码支付)
+                    $inWechat = isWechat();
+                    if ($inWechat) {
+                        $tradeType = 'JSAPI';
+                    } elseif ($isMobile) {
+                        $tradeType = 'MWEB';
+                    } else {
+                        $tradeType = 'NATIVE';
+                    }
+                    
                     $payResult = $payment->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $tradeType);
 
                     $result['success'] = true;
                     $result['payment'] = true;
                     $result['pay_method'] = 'wechat';
                     $result['trade_type'] = $tradeType;
-                    $result['pay_url'] = $payResult['pay_url'];
+                    $result['pay_url'] = $payResult['pay_url'] ?? '';
                     $result['order_no'] = $orderNo;
+                    
+                    // 如果是 JSAPI，还需要返回给前端调起支付的参数
+                    if ($tradeType === 'JSAPI' && isset($payResult['prepay_id'])) {
+                        require_once __DIR__ . '/../app/utils/Wechat.php';
+                        $wechat = new Wechat();
+                        $result['jsapi_params'] = $wechat->getJsApiParameters($payResult['prepay_id']);
+                    }
                 }
                 // 支付宝支付
                 elseif ($payMethod === 'alipay' && ALIPAY_APPID && ALIPAY_PRIVATE_KEY) {
@@ -316,12 +405,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $result['order_no'] = $orderNo;
                 } else {
                     // 演示模式
-                    if ($package === 'monthly') {
-                        if ($user)
-                            $userModel->activateMonthlyCard($user['id'], 30);
-                        $_SESSION['purchased_types'] = ['career', 'marriage', 'wealth', 'health'];
-                    } elseif ($package === 'bundle') {
-                        $_SESSION['purchased_types'] = ['career', 'marriage', 'wealth', 'health'];
+                    if ($package === 'overview') {
+                        $purchased = $_SESSION['purchased_types'] ?? [];
+                        $purchased[] = 'overview';
+                        $_SESSION['purchased_types'] = array_unique($purchased);
                     } elseif ($package === 'single' && $readingType) {
                         $purchased = $_SESSION['purchased_types'] ?? [];
                         $purchased[] = $readingType;
@@ -373,7 +460,7 @@ function isWechat()
                 <span class="logo-icon">🔮</span>
             </div>
             <h1>知运星</h1>
-            <a href="index.php" class="back-link">← 重新算命</a>
+            <a href="index.php" class="back-link">← 返回首页</a>
         </header>
 
         <main class="main">
@@ -409,9 +496,18 @@ function isWechat()
 
             <section class="section">
                 <h2>📖 命盘整体解读</h2>
-                <div class="reading-content">
-                    <?= $overallReading ?>
-                </div>
+                <?php if ($hasOverviewAccess): ?>
+                    <div class="reading-content">
+                        <?= $overallReading ?>
+                    </div>
+                <?php else: ?>
+                    <div class="overview-paywall">
+                        <p class="paywall-hint">🔮 解锁命格解析，了解您的命盘格局与人生走向</p>
+                        <button class="btn-buy-overview" id="btnBuyOverview">
+                            ¥<?= PAYMENT_OVERVIEW_PRICE ?> 解锁命格解析
+                        </button>
+                    </div>
+                <?php endif; ?>
             </section>
 
             <section class="section">
@@ -470,15 +566,6 @@ function isWechat()
                             <button class="btn-read">查看解读</button>
                         <?php endif; ?>
                     </div>
-                </div>
-
-                <div class="bulk-purchase">
-                    <button class="btn-bundle" data-package="bundle">
-                        打包购买全部四项 ¥<?= PAYMENT_BUNDLE_PRICE ?>
-                    </button>
-                    <button class="btn-monthly" data-package="monthly">
-                        开通月卡会员 ¥666（无限次）
-                    </button>
                 </div>
             </section>
 
@@ -651,7 +738,10 @@ function isWechat()
 
                             if (data.success) {
                                 if (data.payment) {
-                                    if (data.pay_url) {
+                                    if (data.trade_type === 'JSAPI' && data.jsapi_params) {
+                                        // 微信内置浏览器 JSAPI 支付
+                                        callWechatPay(data.jsapi_params);
+                                    } else if (data.pay_url) {
                                         // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
                                         window.location.href = data.pay_url;
                                     } else if (data.code_url) {
@@ -667,13 +757,57 @@ function isWechat()
                         })
                         .catch(err => {
                             this.disabled = false;
-                            alert('网络错误，请重试');
+                            alert('网络请求失败，请尝试刷新页面');
                         });
                 });
             });
 
+            // 调起微信支付
+            function callWechatPay(params) {
+                if (typeof WeixinJSBridge == "undefined") {
+                    if (document.addEventListener) {
+                        document.addEventListener('WeixinJSBridgeReady', onBridgeReady(params), false);
+                    } else if (document.attachEvent) {
+                        document.attachEvent('WeixinJSBridgeReady', onBridgeReady(params));
+                        document.attachEvent('onWeixinJSBridgeReady', onBridgeReady(params));
+                    }
+                } else {
+                    onBridgeReady(params);
+                }
+            }
 
-            // 购买单次解读
+            function onBridgeReady(params) {
+                WeixinJSBridge.invoke(
+                    'getBrandWCPayRequest', {
+                        "appId": params.appId,     //公众号名称，由商户传入     
+                        "timeStamp": params.timeStamp, //时间戳，自1970年以来的秒数     
+                        "nonceStr": params.nonceStr, //随机串     
+                        "package": params.package,
+                        "signType": params.signType, //微信签名方式：     
+                        "paySign": params.paySign //微信签名 
+                    },
+                    function (res) {
+                        if (res.err_msg == "get_brand_wcpay_request:ok") {
+                            // 使用以上方式判断前端返回,微信团队郑重提示：
+                            //res.err_msg将在用户支付成功后返回ok，但并不保证它绝对可靠。
+                            alert('支付成功！');
+                            location.reload();
+                        } else if (res.err_msg == "get_brand_wcpay_request:cancel") {
+                            alert('支付已取消');
+                        } else {
+                            alert('支付失败: ' + res.err_msg);
+                        }
+                    }
+                );
+            }
+
+
+            // 解锁命格解析（整体解读）
+            document.getElementById('btnBuyOverview')?.addEventListener('click', function () {
+                handlePurchase('overview', '');
+            });
+
+            // 购买单次深入解读
             document.querySelectorAll('.btn-buy').forEach(btn => {
                 btn.addEventListener('click', function () {
                     if (this.disabled) return;
@@ -681,16 +815,6 @@ function isWechat()
                     const type = option.dataset.type;
                     handlePurchase('single', type);
                 });
-            });
-
-            // 打包购买
-            document.querySelector('.btn-bundle')?.addEventListener('click', function () {
-                handlePurchase('bundle');
-            });
-
-            // 月卡购买
-            document.querySelector('.btn-monthly')?.addEventListener('click', function () {
-                handlePurchase('monthly');
             });
 
             // 查看解读

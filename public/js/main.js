@@ -105,13 +105,13 @@ document.addEventListener('DOMContentLoaded', async function () {
                 } else {
                     alert('排盘失败: ' + result.message);
                     submitBtn.disabled = false;
-                    submitBtn.textContent = '开始算命';
+                    submitBtn.textContent = '查看运势';
                 }
             } catch (error) {
                 console.error('Error:', error);
                 alert('发生错误，请重试');
                 submitBtn.disabled = false;
-                submitBtn.textContent = '开始算命';
+                submitBtn.textContent = '查看运势';
             }
         });
     }

@@ -72,7 +72,7 @@ try {
             ]
         );
 
-        // 保存算命记录（状态为 processing）
+        // 保存排盘记录（状态为 processing）
         $readingId = $readingModel->create([
             'user_id' => $user['id'],
             'session_id' => session_id(),

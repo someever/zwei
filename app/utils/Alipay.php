@@ -9,6 +9,7 @@ class Alipay
     private $privateKey;
     private $publicKey;
     private $notifyUrl;
+    private $returnUrl;
     private $gateway;
 
     public function __construct()
@@ -17,6 +18,7 @@ class Alipay
         $this->privateKey = defined('ALIPAY_PRIVATE_KEY') ? ALIPAY_PRIVATE_KEY : '';
         $this->publicKey = defined('ALIPAY_PUBLIC_KEY') ? ALIPAY_PUBLIC_KEY : '';
         $this->notifyUrl = defined('ALIPAY_NOTIFY_URL') ? ALIPAY_NOTIFY_URL : '';
+        $this->returnUrl = defined('ALIPAY_RETURN_URL') ? ALIPAY_RETURN_URL : '';
 
         $isSandbox = defined('ALIPAY_SANDBOX') && ALIPAY_SANDBOX;
         $this->gateway = $isSandbox
@@ -48,6 +50,11 @@ class Alipay
             'notify_url' => $this->notifyUrl,
             'biz_content' => json_encode($bizContent, JSON_UNESCAPED_UNICODE)
         ];
+
+        // return_url：支付完成后同步跳回（WAP 支付必须配置）
+        if ($this->returnUrl) {
+            $params['return_url'] = $this->returnUrl;
+        }
 
         $params['sign'] = $this->generateSign($params);
 
