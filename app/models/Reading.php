@@ -45,7 +45,7 @@ class Reading {
     }
 
     public function getUserReadings($userId, $limit = 20) {
-        return $this->db->fetchAll("SELECT id, name, gender, birth_year, birth_month, birth_day, overall_reading, career_reading, marriage_reading, wealth_reading, health_reading, created_at FROM readings WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", [$userId, $limit]);
+        return $this->db->fetchAll("SELECT id, name, gender, birth_year, birth_month, birth_day, overall_reading, career_reading, marriage_reading, wealth_reading, health_reading, career_wealth_reading, romance_reading, created_at FROM readings WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", [$userId, $limit]);
     }
 
     public function getBySessionId($sessionId) {

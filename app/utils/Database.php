@@ -140,6 +140,16 @@ class Database
         } catch (PDOException $e) {
             // 列已存在，忽略错误
         }
+
+        // 迁移：新增事业财运与桃花运势字段
+        try {
+            $this->pdo->exec("ALTER TABLE readings ADD COLUMN career_wealth_reading TEXT");
+        } catch (PDOException $e) {
+        }
+        try {
+            $this->pdo->exec("ALTER TABLE readings ADD COLUMN romance_reading TEXT");
+        } catch (PDOException $e) {
+        }
     }
 
     // 查找单条记录

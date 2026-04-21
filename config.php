@@ -68,7 +68,7 @@ define('APP_NAME', '紫微命理');
 define('APP_URL', getenv('APP_URL') ?: 'http://localhost:8080');
 
 // 支付配置
-define('PAYMENT_OVERVIEW_PRICE', 1);    // 命格解析（整体解读）
+define('PAYMENT_OVERVIEW_PRICE', 0.01);    // 命格解析（整体解读）
 define('PAYMENT_SINGLE_PRICE', 5);      // 单次深入解读（事业/合婚/财运/健康）
 define('PAYMENT_BUNDLE_PRICE', 30);     // 保留常量，暂不对外露出
 define('PAYMENT_MONTHLY_PRICE', 666);   // 保留常量，暂不对外露出
@@ -88,6 +88,7 @@ define('WECHAT_KEY_PATH', __DIR__ . '/cert/apiclient_key.pem');
 define('ALIPAY_APPID', $_ENV['ALIPAY_APPID'] ?? getenv('ALIPAY_APPID') ?: '');
 define('ALIPAY_PRIVATE_KEY', $_ENV['ALIPAY_PRIVATE_KEY'] ?? getenv('ALIPAY_PRIVATE_KEY') ?: '');
 define('ALIPAY_PUBLIC_KEY', $_ENV['ALIPAY_PUBLIC_KEY'] ?? getenv('ALIPAY_PUBLIC_KEY') ?: '');
+define('ALIPAY_AES_KEY', $_ENV['ALIPAY_AES_KEY'] ?? getenv('ALIPAY_AES_KEY') ?: '');
 define('ALIPAY_NOTIFY_URL', $_ENV['ALIPAY_NOTIFY_URL'] ?? getenv('ALIPAY_NOTIFY_URL') ?: '');
 define('ALIPAY_SANDBOX', strtolower($_ENV['ALIPAY_SANDBOX'] ?? getenv('ALIPAY_SANDBOX') ?: 'false') === 'true');
 define('ALIPAY_RETURN_URL', $_ENV['ALIPAY_RETURN_URL'] ?? getenv('ALIPAY_RETURN_URL') ?: (APP_URL . '/result.php'));

@@ -79,14 +79,14 @@ do {
                 $readingModel->updateOverallReading($readingId, $content);
                 break;
 
-            case 'career':
-                $content = $gemini->generateCareerReading($panText);
-                $readingModel->updateReading($readingId, 'career', $content);
+            case 'career_wealth':
+                $content = $gemini->generateCareerWealthReading($panText);
+                $readingModel->updateReading($readingId, 'career_wealth', $content);
                 break;
 
-            case 'wealth':
-                $content = $gemini->generateWealthReading($panText);
-                $readingModel->updateReading($readingId, 'wealth', $content);
+            case 'romance':
+                $content = $gemini->generateRomanceReading($panText);
+                $readingModel->updateReading($readingId, 'romance', $content);
                 break;
 
             case 'health':

@@ -29,27 +29,42 @@ class Alipay
     /**
      * 创建支付订单 (WAP/手机网站)
      */
-    public function createOrder($orderNo, $amount, $description)
+    public function createOrder($orderNo, $amount, $description, $tradeType = 'WAP')
     {
         $bizContent = [
             'out_trade_no' => $orderNo,
             'total_amount' => number_format($amount, 2, '.', ''),
             'subject' => mb_substr($description, 0, 100),
-            'product_code' => 'QUICK_WAP_WAY',
+            'product_code' => $tradeType === 'PAGE' ? 'FAST_INSTANT_TRADE_PAY' : 'QUICK_WAP_WAY',
             'timeout_express' => '30m'
         ];
 
         $params = [
             'app_id' => $this->appId,
-            'method' => 'alipay.trade.wap.pay',
+            'method' => $tradeType === 'PAGE' ? 'alipay.trade.page.pay' : 'alipay.trade.wap.pay',
             'format' => 'JSON',
             'charset' => 'utf-8',
             'sign_type' => 'RSA2',
             'timestamp' => date('Y-m-d H:i:s'),
             'version' => '1.0',
             'notify_url' => $this->notifyUrl,
-            'biz_content' => json_encode($bizContent, JSON_UNESCAPED_UNICODE)
         ];
+
+        // 处理 AES 内容加密
+        $bizContentJson = json_encode($bizContent, JSON_UNESCAPED_UNICODE);
+        $aesKey = defined('ALIPAY_AES_KEY') ? ALIPAY_AES_KEY : '';
+        if ($aesKey) {
+            $params['encrypt_type'] = 'AES';
+            $params['biz_content'] = openssl_encrypt(
+                $bizContentJson,
+                'AES-128-CBC',
+                base64_decode($aesKey),
+                0,
+                str_repeat("\0", 16)
+            );
+        } else {
+            $params['biz_content'] = $bizContentJson;
+        }
 
         // return_url：支付完成后同步跳回（WAP 支付必须配置）
         if ($this->returnUrl) {
@@ -76,6 +91,7 @@ class Alipay
             return false;
 
         $sign = $params['sign'];
+        $signType = isset($params['sign_type']) ? $params['sign_type'] : '';
         unset($params['sign']);
         unset($params['sign_type']);
 
@@ -87,6 +103,31 @@ class Alipay
 
         $res = "-----BEGIN PUBLIC KEY-----\n" . wordwrap($this->publicKey, 64, "\n", true) . "\n-----END PUBLIC KEY-----";
         $result = (bool) openssl_verify($content, base64_decode($sign), $res, OPENSSL_ALGO_SHA256);
+
+        // 如果验签成功且存在 AES 加密内容，则解密
+        if ($result && isset($params['encrypt_type']) && $params['encrypt_type'] === 'AES' && isset($params['biz_content'])) {
+            $aesKey = defined('ALIPAY_AES_KEY') ? ALIPAY_AES_KEY : '';
+            if ($aesKey) {
+                $decrypted = openssl_decrypt(
+                    $params['biz_content'],
+                    'AES-128-CBC',
+                    base64_decode($aesKey),
+                    0,
+                    str_repeat("\0", 16)
+                );
+                if ($decrypted) {
+                    $bizParams = json_decode($decrypted, true);
+                    if (is_array($bizParams)) {
+                        // 将解密后的业务参数合入，方便调用方使用
+                        $params = array_merge($params, $bizParams);
+                        // 或者直接将整个解密后的数组作为返回的一部分，但目前返回值是 bool
+                        // 为了兼容，可以通过引用传递或额外的方法获取，但暂不改变签名，先放这里备用
+                        // $_POST 也能改变，但最佳实践是调用方自己解密或这里返回特殊结构
+                    }
+                }
+            }
+        }
+
         return $result;
     }
 

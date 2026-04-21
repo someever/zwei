@@ -170,13 +170,13 @@ if (isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
             $dbPurchasedTypes[] = 'overview';
         } elseif ($order['type'] === 'bundle') {
             // 历史订单兼容：bundle 解锁全部深入解读
-            $dbPurchasedTypes = array_unique(array_merge($dbPurchasedTypes, ['career', 'marriage', 'wealth', 'health']));
+            $dbPurchasedTypes = array_unique(array_merge($dbPurchasedTypes, ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth']));
         } elseif ($order['type'] === 'monthly') {
             $hasMonthlyCard = true;
         } elseif ($order['type'] === 'single' && !empty($order['description'])) {
             // description 格式: "紫微斗数单次解读|career"
             $parts = explode('|', $order['description']);
-            if (isset($parts[1]) && in_array($parts[1], ['career', 'marriage', 'wealth', 'health'])) {
+            if (isset($parts[1]) && in_array($parts[1], ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth'])) {
                 $dbPurchasedTypes[] = $parts[1];
             }
         }
@@ -194,12 +194,12 @@ if (isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
             $purchasedTypes[] = 'overview';
             $purchasedTypes = array_unique($purchasedTypes);
         } elseif ($order['type'] === 'bundle') {
-            $purchasedTypes = array_unique(array_merge($purchasedTypes, ['career', 'marriage', 'wealth', 'health']));
+            $purchasedTypes = array_unique(array_merge($purchasedTypes, ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth']));
         } elseif ($order['type'] === 'monthly') {
             $hasMonthlyCard = true;
         } elseif ($order['type'] === 'single' && !empty($order['description'])) {
             $parts = explode('|', $order['description']);
-            if (isset($parts[1]) && in_array($parts[1], ['career', 'marriage', 'wealth', 'health'])) {
+            if (isset($parts[1]) && in_array($parts[1], ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth'])) {
                 $purchasedTypes[] = $parts[1];
                 $purchasedTypes = array_unique($purchasedTypes);
             }
@@ -219,7 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         switch ($_POST['action']) {
             case 'get_reading':
                 $type = $_POST['type'] ?? '';
-                $validTypes = ['career', 'marriage', 'wealth', 'health'];
+                $validTypes = ['career_wealth', 'marriage', 'romance', 'health'];
 
                 if (!in_array($type, $validTypes)) {
                     throw new Exception('无效的解读类型');
@@ -396,7 +396,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]);
 
                     $alipay = new Alipay();
-                    $payResult = $alipay->createOrder($orderNo, $payInfo['amount'], $payInfo['desc']);
+                    $tradeType = $isMobile ? 'WAP' : 'PAGE';
+                    $payResult = $alipay->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $tradeType);
 
                     $result['success'] = true;
                     $result['payment'] = true;
@@ -515,15 +516,28 @@ function isWechat()
                 <p class="section-desc">选择以下项目获取详细解读</p>
 
                 <div class="reading-options">
-                    <div class="reading-option" data-type="career">
+                    <div class="reading-option" data-type="career_wealth">
                         <div class="option-icon">💼</div>
-                        <div class="option-title">事业分析</div>
-                        <div class="option-desc">事业发展方向、适合职业、事业高峰期</div>
+                        <div class="option-title">事业财运分析</div>
+                        <div class="option-desc">事业发展、正偏财运、财富密码、职场避坑</div>
                         <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
-                        <button class="btn-buy" <?= in_array('career', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
-                            <?= in_array('career', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
+                        <button class="btn-buy" <?= in_array('career_wealth', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
+                            <?= in_array('career_wealth', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
                         </button>
-                        <?php if (in_array('career', $purchasedTypes) || $hasMonthlyCard): ?>
+                        <?php if (in_array('career_wealth', $purchasedTypes) || $hasMonthlyCard): ?>
+                            <button class="btn-read">查看解读</button>
+                        <?php endif; ?>
+                    </div>
+
+                    <div class="reading-option" data-type="romance">
+                        <div class="option-icon">🌸</div>
+                        <div class="option-title">桃花运势分析</div>
+                        <div class="option-desc">正缘特征、感情避坑、遇见时机、烂桃花预警</div>
+                        <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
+                        <button class="btn-buy" <?= in_array('romance', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
+                            <?= in_array('romance', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
+                        </button>
+                        <?php if (in_array('romance', $purchasedTypes) || $hasMonthlyCard): ?>
                             <button class="btn-read">查看解读</button>
                         <?php endif; ?>
                     </div>
@@ -537,19 +551,6 @@ function isWechat()
                             <?= in_array('marriage', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
                         </button>
                         <?php if (in_array('marriage', $purchasedTypes) || $hasMonthlyCard): ?>
-                            <button class="btn-read">查看解读</button>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="reading-option" data-type="wealth">
-                        <div class="option-icon">💰</div>
-                        <div class="option-title">财运分析</div>
-                        <div class="option-desc">财运格局、理财建议、赚钱方向</div>
-                        <div class="option-price">¥<?= PAYMENT_SINGLE_PRICE ?></div>
-                        <button class="btn-buy" <?= in_array('wealth', $purchasedTypes) || $hasMonthlyCard ? 'disabled' : '' ?>>
-                            <?= in_array('wealth', $purchasedTypes) ? '已购买' : ($hasMonthlyCard ? '免费解锁' : '购买') ?>
-                        </button>
-                        <?php if (in_array('wealth', $purchasedTypes) || $hasMonthlyCard): ?>
                             <button class="btn-read">查看解读</button>
                         <?php endif; ?>
                     </div>
