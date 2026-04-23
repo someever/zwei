@@ -81,16 +81,20 @@ class Payment
         
         $result = $this->xmlToArray($response);
 
-        if ($result['return_code'] === 'SUCCESS' && $result['result_code'] === 'SUCCESS') {
-            return array_merge($result, [
-                'success' => true,
-                'order_no' => $orderNo,
-                'amount' => $amount,
-                'pay_url' => $result['mweb_url'] ?? $result['code_url'] ?? ''
-            ]);
+        if ($result['return_code'] !== 'SUCCESS') {
+            throw new Exception('微信支付接口请求失败: ' . ($result['return_msg'] ?? '未知错误'));
         }
 
-        throw new Exception('创建支付订单失败: ' . ($result['return_msg'] ?? $result['err_code_des'] ?? '未知错误'));
+        if ($result['result_code'] !== 'SUCCESS') {
+            throw new Exception('微信支付下单失败: ' . ($result['err_code_des'] ?? $result['err_code'] ?? '业务异常'));
+        }
+
+        return array_merge($result, [
+            'success' => true,
+            'order_no' => $orderNo,
+            'amount' => $amount,
+            'pay_url' => $result['mweb_url'] ?? $result['code_url'] ?? ''
+        ]);
     }
 
     /**
