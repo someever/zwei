@@ -30,7 +30,7 @@ if ($reading['status'] === 'completed') {
     $_SESSION['pan_data'] = $reading['pan_data'];
     $_SESSION['reading_id'] = $reading['id'];
     $_SESSION['overall_reading'] = $reading['overall_reading'];
-    header('Location: result.php');
+    header('Location: result.php?sid=' . session_id());
     exit;
 }
 
@@ -132,7 +132,7 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                 
                 if (data.success && data.status === 'completed') {
                     updateUI('completed');
-                    setTimeout(() => { window.location.href = 'result.php'; }, 800);
+                    setTimeout(() => { window.location.href = 'result.php?sid=<?= session_id() ?>'; }, 800);
                 } else if (data.status === 'failed') {
                     updateUI('failed');
                     isGenerating = false;
@@ -162,7 +162,7 @@ $readingList = $readingModel->getUserReadingsList($userId, 10);
                 
                 if (data.success && data.status === 'completed') {
                     updateUI('completed');
-                    setTimeout(() => { window.location.href = 'result.php'; }, 800);
+                    setTimeout(() => { window.location.href = 'result.php?sid=<?= session_id() ?>'; }, 800);
                 } else {
                     btn.textContent = '🔄 刷新状态';
                     btn.disabled = false;

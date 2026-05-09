@@ -27,10 +27,6 @@ if (strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'MicroMessenger') !== false && WEC
         $url = APP_URL . '/index.php' . (isset($_GET['new']) ? '?new=1' : '');
         header("Location: " . $url);
         exit;
-    } elseif (!isset($_SESSION['openid_verified'])) {
-        $redirectUrl = APP_URL . $_SERVER['REQUEST_URI'];
-        header("Location: " . $wechat->getAuthUrl($redirectUrl));
-        exit;
     }
 }
 

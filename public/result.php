@@ -13,6 +13,31 @@ require_once __DIR__ . '/../app/models/Order.php';
 
 session_start();
 
+// 恢复外部浏览器会话 (处理微信内打开外部浏览器导致 session 丢失的问题)
+if (isset($_GET['sid']) && session_id() !== $_GET['sid']) {
+    session_write_close();
+    session_id($_GET['sid']);
+    session_start();
+}
+
+// 处理微信点击支付时的临时授权回调
+if (isset($_GET['code']) && strpos($_SERVER['HTTP_USER_AGENT'] ?? '', 'MicroMessenger') !== false) {
+    if (WECHAT_APPID && WECHAT_APPSECRET) {
+        require_once __DIR__ . '/../app/utils/Wechat.php';
+        $wechat = new Wechat();
+        $openid = $wechat->getOpenidByCode($_GET['code']);
+        if ($openid) {
+            $_SESSION['openid'] = $openid;
+            $_SESSION['openid_verified'] = true;
+            if (isset($_SESSION['user_id'])) {
+                $userModel = new User();
+                $userModel->update($_SESSION['user_id'], ['openid' => $openid]);
+            }
+        }
+    }
+    header('Location: ' . APP_URL . '/result.php');
+    exit;
+}
 if (!isset($_SESSION['pan_data']) || !isset($_SESSION['reading_id'])) {
     header('Location: index.php');
     exit;
@@ -369,6 +394,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $inWechat = isWechat();
                     $orderType = $payMethod === 'wechat' ? 'WECHAT' : 'ALIPAY';
                     $useWechatJsapi = $payMethod === 'wechat' && $inWechat;
+                    
+                    error_log("Payment initiation: OrderNo={$orderNo}, Amount={$payInfo['amount']}, Method={$payMethod}, InWechat=" . ($inWechat ? 'Yes' : 'No'));
 
                     if ($payMethod === 'alipay' && $inWechat) {
                         throw new Exception('微信内暂不支持直接打开支付宝，请点击右上角在浏览器中打开后再选择支付宝。');
@@ -376,6 +403,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     if ($useWechatJsapi) {
                         $openid = $_SESSION['openid'] ?? '';
+                        if (empty($openid)) {
+                            require_once __DIR__ . '/../app/utils/Wechat.php';
+                            $wechat = new Wechat();
+                            $authUrl = $wechat->getAuthUrl(APP_URL . '/result.php');
+                            $result = [
+                                'success' => true,
+                                'require_auth' => true,
+                                'auth_url' => $authUrl
+                            ];
+                            break;
+                        }
                         $payResult = $fuiou->createJsapiOrder($orderNo, $payInfo['amount'], $payInfo['desc'], WECHAT_APPID, $openid);
                     } else {
                         $payResult = $fuiou->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $orderType);
@@ -644,6 +682,25 @@ function isWechat()
 
     <script>
         document.addEventListener('DOMContentLoaded', async function () {
+            // 检查是否有未完成的授权后自动支付
+            const pendingMethod = sessionStorage.getItem('pending_pay_method');
+            if (pendingMethod === 'wechat') {
+                const pkg = sessionStorage.getItem('pending_pay_package');
+                const type = sessionStorage.getItem('pending_pay_type') || '';
+                
+                sessionStorage.removeItem('pending_pay_method');
+                sessionStorage.removeItem('pending_pay_package');
+                sessionStorage.removeItem('pending_pay_type');
+                
+                if (pkg) {
+                    handlePurchase(pkg, type);
+                    setTimeout(() => {
+                        const wxBtn = document.querySelector('.btn-pay-method.wechat');
+                        if (wxBtn) wxBtn.click();
+                    }, 300);
+                }
+            }
+
             // 加载省市数据
             async function initProvinceSelectors(provinceElId, cityElId) {
                 const provinceSelect = document.getElementById(provinceElId);
@@ -724,6 +781,14 @@ function isWechat()
                             document.getElementById('payModal').style.display = 'none';
 
                             if (data.success) {
+                                if (data.require_auth) {
+                                    sessionStorage.setItem('pending_pay_method', payMethod);
+                                    sessionStorage.setItem('pending_pay_package', currentPayPackage);
+                                    sessionStorage.setItem('pending_pay_type', currentPayType);
+                                    window.location.href = data.auth_url;
+                                    return;
+                                }
+
                                 if (data.payment) {
                                     if (data.trade_type === 'FUIOU_JSAPI' && data.jsapi_params) {
                                         callWechatPay(data.jsapi_params, data.order_no, data.query_order_type || 'WECHAT');
@@ -792,7 +857,7 @@ function isWechat()
                 );
             }
 
-            function confirmPayment(orderNo, orderType) {
+            function confirmPayment(orderNo, orderType, attempts = 0) {
                 fetch('api/payment/query.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -804,14 +869,21 @@ function isWechat()
                         if (data.success && data.paid) {
                             alert('支付成功！');
                             location.reload();
+                        } else if (attempts < 3) {
+                            // 富友可能存在延迟，轮询三次
+                            setTimeout(() => confirmPayment(orderNo, orderType, attempts + 1), 1500);
                         } else {
-                            alert('支付结果确认中，请稍后刷新页面查看。');
+                            alert('支付结果确认中，请稍后手动刷新页面查看。');
                             location.reload();
                         }
                     })
                     .catch(() => {
-                        alert('支付结果确认中，请稍后刷新页面查看。');
-                        location.reload();
+                        if (attempts < 3) {
+                            setTimeout(() => confirmPayment(orderNo, orderType, attempts + 1), 1500);
+                        } else {
+                            alert('支付结果确认中，请稍后手动刷新页面查看。');
+                            location.reload();
+                        }
                     });
             }
 

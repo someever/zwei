@@ -73,7 +73,19 @@ try {
     }
 
     if ($payMethod === 'wechat' && $inWechat) {
-        $payResult = $payment->createJsapiOrder($orderNo, $amount, $description, WECHAT_APPID, $_SESSION['openid'] ?? '');
+        $openid = $_SESSION['openid'] ?? '';
+        if (empty($openid)) {
+            require_once __DIR__ . '/../../../app/utils/Wechat.php';
+            $wechat = new Wechat();
+            $authUrl = $wechat->getAuthUrl(APP_URL . '/result.php');
+            echo json_encode([
+                'success' => true,
+                'require_auth' => true,
+                'auth_url' => $authUrl
+            ]);
+            exit;
+        }
+        $payResult = $payment->createJsapiOrder($orderNo, $amount, $description, WECHAT_APPID, $openid);
         $tradeType = 'FUIOU_JSAPI';
     } else {
         $payResult = $payment->createOrder($orderNo, $amount, $description, $orderType);

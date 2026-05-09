@@ -23,6 +23,8 @@ try {
         throw new Exception('无回调数据');
     }
 
+    error_log('Received Fuiou Pay notify: ' . json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
     $payment = new FuiouPay();
     if ($payment->processNotify($data)) {
         echo '1';

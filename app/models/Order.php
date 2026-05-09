@@ -99,6 +99,7 @@ class Order {
             }
 
             $this->db->commit();
+            error_log("Order::processPayment successful for {$orderNo}. TransactionId: {$transactionId}, Amount: {$order['amount']}, User: {$order['user_id']}");
             return true;
         } catch (Exception $e) {
             $this->db->rollBack();
