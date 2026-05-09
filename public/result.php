@@ -185,25 +185,37 @@ if (isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
         $purchasedTypes = array_unique(array_merge($purchasedTypes, $dbPurchasedTypes));
         $_SESSION['purchased_types'] = $purchasedTypes;
     }
-} elseif (isset($_GET['out_trade_no'])) {
-    // 匿名用户：通过回跳的 order_no 直接查订单并识别购买类型
+} elseif (isset($_GET['out_trade_no']) || !empty($_SESSION['pending_orders'])) {
+    // 匿名用户：通过回跳的 order_no 或 session 中缓存的订单号，直接查订单并识别购买类型
     $orderModel = new Order();
-    $order = $orderModel->getByOrderNo($_GET['out_trade_no']);
-    if ($order && $order['status'] === 'paid') {
-        if ($order['type'] === 'overview') {
-            $purchasedTypes[] = 'overview';
-            $purchasedTypes = array_unique($purchasedTypes);
-        } elseif ($order['type'] === 'bundle') {
-            $purchasedTypes = array_unique(array_merge($purchasedTypes, ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth']));
-        } elseif ($order['type'] === 'monthly') {
-            $hasMonthlyCard = true;
-        } elseif ($order['type'] === 'single' && !empty($order['description'])) {
-            $parts = explode('|', $order['description']);
-            if (isset($parts[1]) && in_array($parts[1], ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth'])) {
-                $purchasedTypes[] = $parts[1];
-                $purchasedTypes = array_unique($purchasedTypes);
+    $ordersToCheck = [];
+    if (isset($_GET['out_trade_no'])) {
+        $ordersToCheck[] = $_GET['out_trade_no'];
+    }
+    if (!empty($_SESSION['pending_orders'])) {
+        $ordersToCheck = array_merge($ordersToCheck, $_SESSION['pending_orders']);
+    }
+
+    foreach (array_unique($ordersToCheck) as $checkOrderNo) {
+        $order = $orderModel->getByOrderNo($checkOrderNo);
+        if ($order && $order['status'] === 'paid') {
+            if ($order['type'] === 'overview') {
+                $purchasedTypes[] = 'overview';
+            } elseif ($order['type'] === 'bundle') {
+                $purchasedTypes = array_merge($purchasedTypes, ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth']);
+            } elseif ($order['type'] === 'monthly') {
+                $hasMonthlyCard = true;
+            } elseif ($order['type'] === 'single' && !empty($order['description'])) {
+                $parts = explode('|', $order['description']);
+                if (isset($parts[1]) && in_array($parts[1], ['career_wealth', 'marriage', 'romance', 'health', 'career', 'wealth'])) {
+                    $purchasedTypes[] = $parts[1];
+                }
             }
         }
+    }
+    
+    if (!empty($purchasedTypes)) {
+        $purchasedTypes = array_unique($purchasedTypes);
         $_SESSION['purchased_types'] = $purchasedTypes;
     }
 }
@@ -333,10 +345,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     break;
                 }
 
-                // 微信支付
-                if ($payMethod === 'wechat' && WECHAT_APPID && WECHAT_MCH_ID) {
-                    require_once __DIR__ . '/../app/utils/Payment.php';
-                    $orderNo = 'WX' . date('YmdHis') . random_int(100000, 999999);
+                // 富友聚合支付：微信/支付宝都通过富友统一下单
+                if (in_array($payMethod, ['wechat', 'alipay'], true) && FUIOU_MCHNT_CD && FUIOU_MCHNT_KEY) {
+                    require_once __DIR__ . '/../app/utils/FuiouPay.php';
+                    $orderNo = FUIOU_ORDER_PREFIX . date('YmdHis') . random_int(10000000, 99999999);
 
                     // 记录订单
                     $orderModel = new Order();
@@ -348,61 +360,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'description' => $package === 'single' && $readingType ? $payInfo['desc'] . '|' . $readingType : $payInfo['desc'],
                         'status' => 'pending'
                     ]);
+                    
+                    // 记录到 session，解决匿名用户支付后刷新页面或跳转后无法获取 out_trade_no 的问题
+                    $_SESSION['pending_orders'] = $_SESSION['pending_orders'] ?? [];
+                    $_SESSION['pending_orders'][] = $orderNo;
 
-                    $payment = new Payment();
-                    // 逻辑：
-                    // 1. 如果在微信内置浏览器 -> JSAPI
-                    // 2. 如果是普通手机浏览器 -> MWEB (H5支付)
-                    // 3. 其他 -> NATIVE (扫码支付)
+                    $fuiou = new FuiouPay();
                     $inWechat = isWechat();
-                    if ($inWechat) {
-                        $tradeType = 'JSAPI';
-                    } elseif ($isMobile) {
-                        $tradeType = 'MWEB';
+                    $orderType = $payMethod === 'wechat' ? 'WECHAT' : 'ALIPAY';
+                    $useWechatJsapi = $payMethod === 'wechat' && $inWechat;
+
+                    if ($payMethod === 'alipay' && $inWechat) {
+                        throw new Exception('微信内暂不支持直接打开支付宝，请点击右上角在浏览器中打开后再选择支付宝。');
+                    }
+
+                    if ($useWechatJsapi) {
+                        $openid = $_SESSION['openid'] ?? '';
+                        $payResult = $fuiou->createJsapiOrder($orderNo, $payInfo['amount'], $payInfo['desc'], WECHAT_APPID, $openid);
                     } else {
-                        $tradeType = 'NATIVE';
+                        $payResult = $fuiou->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $orderType);
                     }
-                    
-                    $payResult = $payment->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $tradeType);
 
                     $result['success'] = true;
                     $result['payment'] = true;
-                    $result['pay_method'] = 'wechat';
-                    $result['trade_type'] = $tradeType;
+                    $result['pay_method'] = $payMethod;
+                    $result['trade_type'] = $useWechatJsapi ? 'FUIOU_JSAPI' : 'FUIOU_' . $orderType;
                     $result['pay_url'] = $payResult['pay_url'] ?? '';
-                    $result['order_no'] = $orderNo;
-                    
-                    // 如果是 JSAPI，还需要返回给前端调起支付的参数
-                    if ($tradeType === 'JSAPI' && isset($payResult['prepay_id'])) {
-                        require_once __DIR__ . '/../app/utils/Wechat.php';
-                        $wechat = new Wechat();
-                        $result['jsapi_params'] = $wechat->getJsApiParameters($payResult['prepay_id']);
-                    }
-                }
-                // 支付宝支付
-                elseif ($payMethod === 'alipay' && ALIPAY_APPID && ALIPAY_PRIVATE_KEY) {
-                    require_once __DIR__ . '/../app/utils/Alipay.php';
-                    $orderNo = 'ALI' . date('YmdHis') . random_int(100000, 999999);
-
-                    // 记录订单
-                    $orderModel = new Order();
-                    $orderModel->create([
-                        'user_id' => $_SESSION['user_id'] ?? 0,
-                        'order_no' => $orderNo,
-                        'type' => $package,
-                        'amount' => $payInfo['amount'],
-                        'description' => $package === 'single' && $readingType ? $payInfo['desc'] . '|' . $readingType : $payInfo['desc'],
-                        'status' => 'pending'
-                    ]);
-
-                    $alipay = new Alipay();
-                    $tradeType = $isMobile ? 'WAP' : 'PAGE';
-                    $payResult = $alipay->createOrder($orderNo, $payInfo['amount'], $payInfo['desc'], $tradeType);
-
-                    $result['success'] = true;
-                    $result['payment'] = true;
-                    $result['pay_method'] = 'alipay';
-                    $result['pay_url'] = $payResult['pay_url'];
+                    $result['code_url'] = $payResult['code_url'] ?? '';
+                    $result['jsapi_params'] = $payResult['jsapi_params'] ?? null;
+                    $result['query_order_type'] = $orderType;
                     $result['order_no'] = $orderNo;
                 } else {
                     // 演示模式
@@ -739,9 +725,8 @@ function isWechat()
 
                             if (data.success) {
                                 if (data.payment) {
-                                    if (data.trade_type === 'JSAPI' && data.jsapi_params) {
-                                        // 微信内置浏览器 JSAPI 支付
-                                        callWechatPay(data.jsapi_params);
+                                    if (data.trade_type === 'FUIOU_JSAPI' && data.jsapi_params) {
+                                        callWechatPay(data.jsapi_params, data.order_no, data.query_order_type || 'WECHAT');
                                     } else if (data.pay_url) {
                                         // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
                                         window.location.href = data.pay_url;
@@ -764,20 +749,26 @@ function isWechat()
             });
 
             // 调起微信支付
-            function callWechatPay(params) {
+            function callWechatPay(params, orderNo, orderType) {
                 if (typeof WeixinJSBridge == "undefined") {
                     if (document.addEventListener) {
-                        document.addEventListener('WeixinJSBridgeReady', onBridgeReady(params), false);
+                        document.addEventListener('WeixinJSBridgeReady', function () {
+                            onBridgeReady(params, orderNo, orderType);
+                        }, false);
                     } else if (document.attachEvent) {
-                        document.attachEvent('WeixinJSBridgeReady', onBridgeReady(params));
-                        document.attachEvent('onWeixinJSBridgeReady', onBridgeReady(params));
+                        document.attachEvent('WeixinJSBridgeReady', function () {
+                            onBridgeReady(params, orderNo, orderType);
+                        });
+                        document.attachEvent('onWeixinJSBridgeReady', function () {
+                            onBridgeReady(params, orderNo, orderType);
+                        });
                     }
                 } else {
-                    onBridgeReady(params);
+                    onBridgeReady(params, orderNo, orderType);
                 }
             }
 
-            function onBridgeReady(params) {
+            function onBridgeReady(params, orderNo, orderType) {
                 WeixinJSBridge.invoke(
                     'getBrandWCPayRequest', {
                         "appId": params.appId,     //公众号名称，由商户传入     
@@ -791,8 +782,7 @@ function isWechat()
                         if (res.err_msg == "get_brand_wcpay_request:ok") {
                             // 使用以上方式判断前端返回,微信团队郑重提示：
                             //res.err_msg将在用户支付成功后返回ok，但并不保证它绝对可靠。
-                            alert('支付成功！');
-                            location.reload();
+                            confirmPayment(orderNo, orderType);
                         } else if (res.err_msg == "get_brand_wcpay_request:cancel") {
                             alert('支付已取消');
                         } else {
@@ -800,6 +790,29 @@ function isWechat()
                         }
                     }
                 );
+            }
+
+            function confirmPayment(orderNo, orderType) {
+                fetch('api/payment/query.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'order_no=' + encodeURIComponent(orderNo) +
+                        '&order_type=' + encodeURIComponent(orderType || 'WECHAT')
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success && data.paid) {
+                            alert('支付成功！');
+                            location.reload();
+                        } else {
+                            alert('支付结果确认中，请稍后刷新页面查看。');
+                            location.reload();
+                        }
+                    })
+                    .catch(() => {
+                        alert('支付结果确认中，请稍后刷新页面查看。');
+                        location.reload();
+                    });
             }
 
 
