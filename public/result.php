@@ -56,41 +56,64 @@ function markdownToHtml($text)
     $inList = false;      // 当前是否在列表中
     $listType = '';       // ul 或 ol
     $inParagraph = false; // 当前是否在段落中
-    
+
     foreach ($lines as $line) {
         $trimmed = trim($line);
-        
+
         // 空行：关闭所有块
         if ($trimmed === '') {
-            if ($inList) { $html .= "</{$listType}>"; $inList = false; }
-            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if ($inList) {
+                $html .= "</{$listType}>";
+                $inList = false;
+            }
+            if ($inParagraph) {
+                $html .= '</p>';
+                $inParagraph = false;
+            }
             continue;
         }
-        
+
         // 水平线
         if (preg_match('/^---+$/', $trimmed) || preg_match('/^\*\*\*+$/', $trimmed)) {
-            if ($inList) { $html .= "</{$listType}>"; $inList = false; }
-            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if ($inList) {
+                $html .= "</{$listType}>";
+                $inList = false;
+            }
+            if ($inParagraph) {
+                $html .= '</p>';
+                $inParagraph = false;
+            }
             $html .= '<hr>';
             continue;
         }
-        
+
         // 标题
         if (preg_match('/^(#{1,5})\s+(.+)$/', $trimmed, $m)) {
-            if ($inList) { $html .= "</{$listType}>"; $inList = false; }
-            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if ($inList) {
+                $html .= "</{$listType}>";
+                $inList = false;
+            }
+            if ($inParagraph) {
+                $html .= '</p>';
+                $inParagraph = false;
+            }
             $level = strlen($m[1]) + 1; // # → h2, ## → h3, ### → h4 ...
-            if ($level > 6) $level = 6;
+            if ($level > 6)
+                $level = 6;
             $content = applyInline($m[2]);
             $html .= "<h{$level}>{$content}</h{$level}>";
             continue;
         }
-        
+
         // 无序列表
         if (preg_match('/^[-*]\s+(.+)$/', $trimmed, $m)) {
-            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if ($inParagraph) {
+                $html .= '</p>';
+                $inParagraph = false;
+            }
             if (!$inList || $listType !== 'ul') {
-                if ($inList) $html .= "</{$listType}>";
+                if ($inList)
+                    $html .= "</{$listType}>";
                 $html .= '<ul>';
                 $inList = true;
                 $listType = 'ul';
@@ -98,12 +121,16 @@ function markdownToHtml($text)
             $html .= '<li>' . applyInline($m[1]) . '</li>';
             continue;
         }
-        
+
         // 有序列表
         if (preg_match('/^\d+\.\s+(.+)$/', $trimmed, $m)) {
-            if ($inParagraph) { $html .= '</p>'; $inParagraph = false; }
+            if ($inParagraph) {
+                $html .= '</p>';
+                $inParagraph = false;
+            }
             if (!$inList || $listType !== 'ol') {
-                if ($inList) $html .= "</{$listType}>";
+                if ($inList)
+                    $html .= "</{$listType}>";
                 $html .= '<ol>';
                 $inList = true;
                 $listType = 'ol';
@@ -111,9 +138,12 @@ function markdownToHtml($text)
             $html .= '<li>' . applyInline($m[1]) . '</li>';
             continue;
         }
-        
+
         // 普通文本行（段落）
-        if ($inList) { $html .= "</{$listType}>"; $inList = false; }
+        if ($inList) {
+            $html .= "</{$listType}>";
+            $inList = false;
+        }
         if (!$inParagraph) {
             $html .= '<p>';
             $inParagraph = true;
@@ -122,11 +152,13 @@ function markdownToHtml($text)
         }
         $html .= applyInline($trimmed);
     }
-    
+
     // 关闭未闭合的块
-    if ($inList) $html .= "</{$listType}>";
-    if ($inParagraph) $html .= '</p>';
-    
+    if ($inList)
+        $html .= "</{$listType}>";
+    if ($inParagraph)
+        $html .= '</p>';
+
     return $html;
 }
 
@@ -238,7 +270,7 @@ if (isset($_SESSION['user_id']) && $_SESSION['user_id'] > 0) {
             }
         }
     }
-    
+
     if (!empty($purchasedTypes)) {
         $purchasedTypes = array_unique($purchasedTypes);
         $_SESSION['purchased_types'] = $purchasedTypes;
@@ -273,7 +305,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                 $readingModel = new Reading();
                 $reading = $readingModel->getById($readingId);
-                
+
                 // 如果数据库已经有结果了，直接返回
                 $field = $type . '_reading';
                 if (!empty($reading[$field])) {
@@ -342,7 +374,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // 确定支付金额和类型
                 $typeMap = [
                     'overview' => ['amount' => PAYMENT_OVERVIEW_PRICE, 'desc' => '命盘整体解读'],
-                    'single'   => ['amount' => PAYMENT_SINGLE_PRICE,   'desc' => '紫微斗数单次深入解读'],
+                    'single' => ['amount' => PAYMENT_SINGLE_PRICE, 'desc' => '紫微斗数单次深入解读'],
                 ];
 
                 if (!isset($typeMap[$package])) {
@@ -385,7 +417,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         'description' => $package === 'single' && $readingType ? $payInfo['desc'] . '|' . $readingType : $payInfo['desc'],
                         'status' => 'pending'
                     ]);
-                    
+
                     // 记录到 session，解决匿名用户支付后刷新页面或跳转后无法获取 out_trade_no 的问题
                     $_SESSION['pending_orders'] = $_SESSION['pending_orders'] ?? [];
                     $_SESSION['pending_orders'][] = $orderNo;
@@ -394,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $inWechat = isWechat();
                     $orderType = $payMethod === 'wechat' ? 'WECHAT' : 'ALIPAY';
                     $useWechatJsapi = $payMethod === 'wechat' && $inWechat;
-                    
+
                     error_log("Payment initiation: OrderNo={$orderNo}, Amount={$payInfo['amount']}, Method={$payMethod}, InWechat=" . ($inWechat ? 'Yes' : 'No'));
 
                     if ($payMethod === 'alipay' && $inWechat) {
@@ -687,11 +719,11 @@ function isWechat()
             if (pendingMethod === 'wechat') {
                 const pkg = sessionStorage.getItem('pending_pay_package');
                 const type = sessionStorage.getItem('pending_pay_type') || '';
-                
+
                 sessionStorage.removeItem('pending_pay_method');
                 sessionStorage.removeItem('pending_pay_package');
                 sessionStorage.removeItem('pending_pay_type');
-                
+
                 if (pkg) {
                     handlePurchase(pkg, type);
                     setTimeout(() => {
@@ -762,6 +794,13 @@ function isWechat()
             document.querySelectorAll('.btn-pay-method').forEach(btn => {
                 btn.addEventListener('click', function () {
                     const payMethod = this.dataset.method;
+                    
+                    // 环境校验
+                    if (env.isWechat && payMethod === 'alipay') {
+                        alert('微信内暂不支持直接使用支付宝，请点击右上角在浏览器中打开后再选择支付宝。');
+                        return;
+                    }
+
                     const body = 'action=purchase&package=' + currentPayPackage +
                         (currentPayType ? '&reading_type=' + currentPayType : '') +
                         '&pay_method=' + payMethod;
@@ -793,8 +832,13 @@ function isWechat()
                                     if (data.trade_type === 'FUIOU_JSAPI' && data.jsapi_params) {
                                         callWechatPay(data.jsapi_params, data.order_no, data.query_order_type || 'WECHAT');
                                     } else if (data.pay_url) {
-                                        // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
-                                        window.location.href = data.pay_url;
+                                        if (data.pay_method === 'wechat' && data.pay_url.startsWith('weixin://')) {
+                                            // 通过中间页拉起富友小程序
+                                            window.location.href = '/wechat_h5.php?scheme=' + encodeURIComponent(data.pay_url);
+                                        } else {
+                                            // 直接跳转到支付链接（无论是支付宝WAP还是微信H5）
+                                            window.location.href = data.pay_url;
+                                        }
                                     } else if (data.code_url) {
                                         alert('请扫码支付：' + data.code_url);
                                     }
@@ -836,13 +880,13 @@ function isWechat()
             function onBridgeReady(params, orderNo, orderType) {
                 WeixinJSBridge.invoke(
                     'getBrandWCPayRequest', {
-                        "appId": params.appId,     //公众号名称，由商户传入     
-                        "timeStamp": params.timeStamp, //时间戳，自1970年以来的秒数     
-                        "nonceStr": params.nonceStr, //随机串     
-                        "package": params.package,
-                        "signType": params.signType, //微信签名方式：     
-                        "paySign": params.paySign //微信签名 
-                    },
+                    "appId": params.appId,     //公众号名称，由商户传入     
+                    "timeStamp": params.timeStamp, //时间戳，自1970年以来的秒数     
+                    "nonceStr": params.nonceStr, //随机串     
+                    "package": params.package,
+                    "signType": params.signType, //微信签名方式：     
+                    "paySign": params.paySign //微信签名 
+                },
                     function (res) {
                         if (res.err_msg == "get_brand_wcpay_request:ok") {
                             // 使用以上方式判断前端返回,微信团队郑重提示：
