@@ -713,6 +713,11 @@ function isWechat()
     </div>
 
     <script>
+        const env = {
+            isWechat: <?= isWechat() ? 'true' : 'false' ?>,
+            isMobile: <?= isMobile() ? 'true' : 'false' ?>
+        };
+
         document.addEventListener('DOMContentLoaded', async function () {
             // 检查是否有未完成的授权后自动支付
             const pendingMethod = sessionStorage.getItem('pending_pay_method');
