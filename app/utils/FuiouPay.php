@@ -16,7 +16,7 @@ class FuiouPay
     {
         $this->mchntCd = $options['mchnt_cd'] ?? (defined('FUIOU_MCHNT_CD') ? FUIOU_MCHNT_CD : '');
         $this->mchntKey = $options['mchnt_key'] ?? (defined('FUIOU_MCHNT_KEY') ? FUIOU_MCHNT_KEY : '');
-        $this->termId = $options['term_id'] ?? (defined('FUIOU_TERM_ID') ? FUIOU_TERM_ID : 'ZWEI0001');
+        $this->termId = $options['term_id'] ?? (defined('FUIOU_TERM_ID') ? FUIOU_TERM_ID : '88888888');
         $this->notifyUrl = $options['notify_url'] ?? (defined('FUIOU_NOTIFY_URL') ? FUIOU_NOTIFY_URL : '');
         $this->sandbox = array_key_exists('sandbox', $options)
             ? (bool) $options['sandbox']
@@ -436,12 +436,7 @@ class FuiouPay
 
     private function getClientIp()
     {
-        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ip = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-            return trim($ip[0]);
-        }
-
-        return $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
+        return '127.0.0.1';
     }
 
     private function postJson($url, $data)

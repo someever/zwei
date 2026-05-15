@@ -96,7 +96,7 @@ define('ALIPAY_RETURN_URL', $_ENV['ALIPAY_RETURN_URL'] ?? getenv('ALIPAY_RETURN_
 // 富友聚合支付配置 - 默认使用官方测试参数，生产请在 .env 中覆盖
 define('FUIOU_MCHNT_CD', $_ENV['FUIOU_MCHNT_CD'] ?? getenv('FUIOU_MCHNT_CD') ?: '0002900F5829371');
 define('FUIOU_MCHNT_KEY', $_ENV['FUIOU_MCHNT_KEY'] ?? getenv('FUIOU_MCHNT_KEY') ?: 'f00dac5077ea11e754e14c9541bc0170');
-define('FUIOU_TERM_ID', $_ENV['FUIOU_TERM_ID'] ?? getenv('FUIOU_TERM_ID') ?: 'ZWEI0001');
+define('FUIOU_TERM_ID', $_ENV['FUIOU_TERM_ID'] ?? getenv('FUIOU_TERM_ID') ?: '88888888');
 define('FUIOU_NOTIFY_URL', $_ENV['FUIOU_NOTIFY_URL'] ?? getenv('FUIOU_NOTIFY_URL') ?: (APP_URL . '/api/payment/fuiou_notify.php'));
 define('FUIOU_SANDBOX', strtolower($_ENV['FUIOU_SANDBOX'] ?? getenv('FUIOU_SANDBOX') ?: 'true') === 'true');
 define('FUIOU_ORDER_PREFIX', $_ENV['FUIOU_ORDER_PREFIX'] ?? getenv('FUIOU_ORDER_PREFIX') ?: '1066');
