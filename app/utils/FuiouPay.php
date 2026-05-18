@@ -450,11 +450,17 @@ class FuiouPay
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
+        error_log("Fuiou API Request - URL: {$url}");
+        error_log("Fuiou API Request - Data: " . json_encode($data, JSON_UNESCAPED_UNICODE));
+
         $response = curl_exec($ch);
         if ($response === false) {
             $error = curl_error($ch);
+            error_log("Fuiou API Error: " . $error);
             throw new Exception('富友支付请求失败: ' . $error);
         }
+
+        error_log("Fuiou API Response: " . $response);
 
         return $response;
     }
